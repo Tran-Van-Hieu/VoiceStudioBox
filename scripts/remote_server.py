@@ -17,8 +17,10 @@ import argparse
 import os
 import re
 import shutil
+import sqlite3
 import subprocess
 import sys
+import threading
 import time
 import urllib.request
 from pathlib import Path
@@ -51,6 +53,63 @@ def build_web() -> None:
     shutil.copytree(ROOT / "web" / "dist", ROOT / "frontend")
 
 
+# Rebuilt or re-downloaded on demand; not worth copying to Drive.
+SKIP_SYNC = {"cache", "backends", "models", "voicebox.db", "voicebox.db-wal", "voicebox.db-shm"}
+
+
+def restore(persist: Path, data: Path) -> None:
+    """Copy a saved library (Drive) to the local data dir before the server starts."""
+    if (persist / "voicebox.db").exists() and not (data / "voicebox.db").exists():
+        shutil.copytree(persist, data, dirs_exist_ok=True, ignore=shutil.ignore_patterns("link.txt", "*.tmp"))
+        print(f"Restored voices and history from {persist}")
+
+
+def backup(data: Path, persist: Path) -> None:
+    """Mirror the local data dir to ``persist``.
+
+    SQLite runs on local disk (Drive's FUSE mount breaks its locking); the DB is
+    copied with the backup API so a write in progress never yields a torn file.
+    """
+    db = data / "voicebox.db"
+    if not db.exists():
+        return
+    persist.mkdir(parents=True, exist_ok=True)
+    snap = data / "voicebox.db.snapshot"
+    src, dst = sqlite3.connect(db), sqlite3.connect(snap)
+    try:
+        src.backup(dst)
+    finally:
+        src.close()
+        dst.close()
+    shutil.copyfile(snap, persist / "voicebox.db.tmp")
+    os.replace(persist / "voicebox.db.tmp", persist / "voicebox.db")
+    snap.unlink()
+
+    keep = set()
+    for f in data.rglob("*"):
+        rel = f.relative_to(data)
+        if rel.parts[0] in SKIP_SYNC or not f.is_file() or f.name.endswith(".snapshot"):
+            continue
+        keep.add(rel)
+        target = persist / rel
+        st = f.stat()
+        if not target.exists() or target.stat().st_size != st.st_size or target.stat().st_mtime < st.st_mtime:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(f, target)
+    for f in persist.rglob("*"):  # deleted voices must not come back next session
+        rel = f.relative_to(persist)
+        if f.is_file() and rel not in keep and rel.parts[0] not in SKIP_SYNC and rel.name != "link.txt":
+            f.unlink()
+
+
+def backup_loop(data: Path, persist: Path, stop: threading.Event, every: int = 60) -> None:
+    while not stop.wait(every):
+        try:
+            backup(data, persist)
+        except Exception as e:  # a failed round must not kill the server; the next one retries
+            print(f"Drive backup failed, retrying in {every}s: {e}")
+
+
 def wait_healthy(port: int, seconds: int = 300) -> None:
     for _ in range(seconds):
         try:
@@ -68,12 +127,20 @@ def main() -> None:
     ap.add_argument("--skip-install", action="store_true")
     ap.add_argument("--no-web", action="store_true", help="API only, for the desktop app")
     ap.add_argument("--no-tunnel", action="store_true", help="bind 0.0.0.0 and print no public URL")
+    ap.add_argument("--persist-dir", help="mirror voices and history here (e.g. Google Drive) and restore from it")
     args = ap.parse_args()
 
     if not args.skip_install:
         install()
     if not args.no_web:
         build_web()
+
+    data = Path(args.data_dir)
+    persist = Path(args.persist_dir) if args.persist_dir else None
+    stop = threading.Event()
+    if persist:
+        restore(persist, data)
+        threading.Thread(target=backup_loop, args=(data, persist, stop), daemon=True).start()
 
     server = subprocess.Popen(
         [sys.executable, "-m", "backend.main", "--host", "0.0.0.0" if args.no_tunnel else "127.0.0.1",
@@ -100,10 +167,20 @@ def main() -> None:
             match = re.search(r"https://[\w-]+\.trycloudflare\.com", line)
             if match:
                 print(f"\nVoice Studio Box ready. Open this link in your browser:\n\n    {match[0]}\n")
+                if persist:
+                    persist.mkdir(parents=True, exist_ok=True)
+                    (persist / "link.txt").write_text(match[0] + "\n")
                 break
+        # Keep reading: a full stderr pipe would block cloudflared and freeze the tunnel.
+        threading.Thread(target=lambda: [None for _ in tunnel.stderr], daemon=True).start()
         server.wait()
     finally:
+        stop.set()
         server.terminate()
+        server.wait(timeout=30)
+        if persist:
+            backup(data, persist)
+            print(f"Saved voices and history to {persist}")
 
 
 if __name__ == "__main__":
