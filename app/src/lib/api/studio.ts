@@ -1,5 +1,6 @@
 /** API client for the redesigned workspaces. */
 import { useServerStore } from '@/stores/serverStore';
+import type { EffectConfig } from './types';
 
 export function serverUrl(path: string): string {
   return `${useServerStore.getState().serverUrl}${path}`;
@@ -194,6 +195,9 @@ export interface StudioDefaults {
   speed?: number;
   denoise?: number;
   sentence_pause_ms?: number;
+  effects_chain?: EffectConfig[] | null;
+  /** The picker choice behind effects_chain: 'voice', 'none' or a preset id. */
+  effects?: string;
 }
 
 export interface StudioProject {

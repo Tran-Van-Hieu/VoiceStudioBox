@@ -1912,6 +1912,55 @@
       "selectAll": "Chọn tất cả",
       "take": "Bản {{n}}",
       "unfinished": "Còn {{count}} đoạn chưa xong, chưa gộp được."
+    },
+    "tune": {
+      "model": "Cài đặt mô hình",
+      "modelHint": "Lưu theo từng mô hình và dùng chung cho Một bản, Kịch bản dài, Hàng loạt, Nhiều giọng. Số đổi màu là đã khác mặc định.",
+      "reset": "Mặc định",
+      "post": "Hậu xử lý",
+      "effects": "Hiệu ứng",
+      "effectsHint": "Áp sau khi đọc xong. Tạo bộ hiệu ứng riêng ở trang Hiệu ứng.",
+      "effectsVoice": "Theo giọng đã chọn",
+      "effectsNone": "Không dùng hiệu ứng",
+      "loudnessHint": "Cài đặt chung, áp cho mọi bản tạo mới.",
+      "p": {
+        "num_step": "Số bước giải mã",
+        "guidance_scale": "Độ bám văn bản (guidance)",
+        "t_shift": "Dịch thời gian (t_shift)",
+        "position_temperature": "Nhiệt độ vị trí",
+        "class_temperature": "Nhiệt độ token",
+        "layer_penalty_factor": "Phạt lớp",
+        "denoise": "Khử nhiễu trong mô hình",
+        "postprocess_output": "Hậu xử lý của mô hình",
+        "do_sample": "Lấy mẫu ngẫu nhiên",
+        "temperature": "Nhiệt độ",
+        "top_k": "Top-k",
+        "top_p": "Top-p",
+        "repetition_penalty": "Phạt lặp",
+        "subtalker_temperature": "Nhiệt độ bộ giải mã phụ",
+        "subtalker_top_k": "Top-k bộ giải mã phụ",
+        "subtalker_top_p": "Top-p bộ giải mã phụ",
+        "max_new_tokens": "Số token tối đa"
+      },
+      "h": {
+        "num_step": "16 nhanh gấp đôi, 32 là mặc định, 64 kỹ nhất nhưng chậm nhất.",
+        "guidance_scale": "Cao hơn: đọc sát chữ và giống giọng mẫu hơn, quá cao dễ gắt. Mặc định 2.",
+        "t_shift": "Phân bổ bước giải mã; thấp dồn bước vào phần chi tiết. Mặc định 0.1.",
+        "position_temperature": "Độ ngẫu nhiên khi chọn vị trí giải mã. Mặc định 5.",
+        "class_temperature": "0 = luôn chọn token chắc nhất (ổn định). Cao hơn: biểu cảm hơn nhưng dễ sai chữ.",
+        "layer_penalty_factor": "Ưu tiên giải mã lớp âm thô trước lớp chi tiết. Mặc định 5.",
+        "denoise": "Mô hình tự lọc nhiễu của giọng mẫu khi nhân bản.",
+        "postprocess_output": "Mô hình tự cắt khoảng lặng thừa ở đầu/cuối.",
+        "do_sample": "Tắt: luôn chọn token chắc nhất, đọc đều nhưng có thể đơn điệu hoặc lặp.",
+        "temperature": "Thấp: đều, ít sai. Cao: biểu cảm hơn, dễ sai chữ. Mặc định 0.9.",
+        "top_k": "Chỉ chọn trong k token khả dĩ nhất. Mặc định 50.",
+        "top_p": "Chỉ chọn trong nhóm token có tổng xác suất p. Mặc định 1.",
+        "repetition_penalty": "Cao hơn giảm đọc lặp hoặc kéo dài. Mặc định 1.05.",
+        "subtalker_temperature": "Như nhiệt độ, cho bộ sinh chi tiết âm thanh. Mặc định 0.9.",
+        "subtalker_top_k": "Top-k cho bộ sinh chi tiết âm thanh. Mặc định 50.",
+        "subtalker_top_p": "Top-p cho bộ sinh chi tiết âm thanh. Mặc định 1.",
+        "max_new_tokens": "Giới hạn độ dài mỗi đoạn; thấp quá sẽ bị cắt cụt. Mặc định 2048."
+      }
     }
   }
 }

@@ -14,7 +14,7 @@ import { useExtrasSettings } from '@/lib/hooks/useExtras';
 import { SettingRow, SettingSection } from './SettingRow';
 
 const BITRATES = [96, 128, 160, 192, 256, 320];
-const LOUDNESS_PRESETS: { value: string; key: string }[] = [
+export const LOUDNESS_PRESETS: { value: string; key: string }[] = [
   { value: 'off', key: 'off' },
   { value: '-14', key: 'streaming' },
   { value: '-16', key: 'podcast' },

@@ -19,7 +19,6 @@ import { type ExportFormat, extrasApi } from '@/lib/api/extras';
 import { studioApi } from '@/lib/api/studio';
 import type { GenerationRequest } from '@/lib/api/types';
 import { EMOTIONS, type EmotionId, emotionSupport } from '@/lib/constants/emotions';
-import { useExtrasSettings } from '@/lib/hooks/useExtras';
 import { useProfiles } from '@/lib/hooks/useProfiles';
 import { usePlayerStore } from '@/stores/playerStore';
 import {
@@ -38,6 +37,12 @@ import {
 } from './common';
 import { ScriptTab } from './ScriptTab';
 import { StudioTab } from './StudioTab';
+import {
+  type EffectsChoice,
+  effectsChainFor,
+  useEffectPresets,
+  VoiceTuning,
+} from './VoiceTuning';
 
 export const PREFILL_KEY = 'voicebox.prefill';
 
@@ -77,7 +82,6 @@ function SingleSpeak() {
   const setAudio = usePlayerStore((s) => s.setAudioWithAutoPlay);
   const { data: profiles } = useProfiles();
   const fileRef = useRef<HTMLInputElement>(null);
-  const { settings: extras, update: updateExtras } = useExtrasSettings();
 
   const [text, setText] = useState('');
   const [profileId, setProfileId] = useState<string | null>(null);
@@ -91,6 +95,8 @@ function SingleSpeak() {
   const [intensity, setIntensity] = useState(0.6);
   const [speed, setSpeed] = useState(1);
   const [denoise, setDenoise] = useState(0);
+  const [effects, setEffects] = useState<EffectsChoice>('voice');
+  const { data: presets } = useEffectPresets();
   const [pause, setPause] = useState(250);
   const [preview, setPreview] = useState<string | null>(null);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -157,6 +163,7 @@ function SingleSpeak() {
         emotion_intensity: intensity,
         denoise: denoise > 0 ? denoise : undefined,
         sentence_pause_ms: pause,
+        effects_chain: effectsChainFor(effects, presets),
       } as GenerationRequest),
     onSuccess: (g) => setCurrentId(g.id),
     onError: (e: Error) =>
@@ -319,24 +326,6 @@ function SingleSpeak() {
           <Field label={t('studio.common.model')}>
             <ModelPicker value={model} onChange={setModel} language={language} profile={profile} />
           </Field>
-          {engine === 'omnivoice' && (
-            // Same server setting as Settings -> OmniVoice quality, so both stay in sync.
-            <Field label={t('extras.qc.steps.title')} hint={t('extras.qc.steps.description')}>
-              <Select
-                value={String(extras?.omnivoice_steps ?? 32)}
-                onValueChange={(v) => updateExtras({ omnivoice_steps: Number(v) })}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="16">{t('extras.qc.steps.fast')}</SelectItem>
-                  <SelectItem value="32">{t('extras.qc.steps.standard')}</SelectItem>
-                  <SelectItem value="48">{t('extras.qc.steps.best')}</SelectItem>
-                </SelectContent>
-              </Select>
-            </Field>
-          )}
           {!languageOk && <ErrorNote>{t('studio.speak.modelLanguage')}</ErrorNote>}
           {bestSeed !== undefined && (
             <p className="text-xs text-muted-foreground">{t('studio.speak.bestSeed')}</p>
@@ -378,15 +367,6 @@ function SingleSpeak() {
             onChange={setSpeed}
           />
           <SliderField
-            label={t('studio.common.denoise')}
-            value={denoise}
-            min={0}
-            max={1}
-            step={0.1}
-            format={(v) => (v ? `${Math.round(v * 100)}%` : t('studio.common.off'))}
-            onChange={setDenoise}
-          />
-          <SliderField
             label={t('studio.speak.pause')}
             value={pause}
             min={0}
@@ -396,6 +376,13 @@ function SingleSpeak() {
             onChange={setPause}
           />
         </Panel>
+        <VoiceTuning
+          engine={engine}
+          denoise={denoise}
+          onDenoise={setDenoise}
+          effects={effects}
+          onEffects={setEffects}
+        />
       </div>
     </div>
   );

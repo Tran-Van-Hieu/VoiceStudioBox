@@ -328,6 +328,7 @@ class OmniVoiceBackend:
                 "text": text,
                 "language": resolved_language,
                 "num_step": num_step,
+                **extras.model_params("omnivoice"),
             }
             if abs(speed - 1.0) >= 0.01:
                 kwargs["speed"] = speed

@@ -1,4 +1,5 @@
 import type { FinalCheck } from './studio';
+import type { EffectConfig } from './types';
 /**
  * API client for the vi-upgrades features: extras settings (speed,
  * pronunciation dictionary, export, refine prompt, VRAM), VRAM status,
@@ -33,6 +34,7 @@ export interface ExtrasSettings {
   qc_match: 'exact' | 'tolerant';
   qc_tones: boolean;
   omnivoice_steps: number;
+  model_params: Record<string, Record<string, number | boolean>>;
   queue_cooldown_seconds: number;
   sample_emotions: Record<string, string>;
 }
@@ -74,6 +76,7 @@ export interface BatchCreateRequest {
   emotion_intensity?: number;
   denoise?: number;
   sentence_pause_ms?: number;
+  effects_chain?: EffectConfig[];
   items: BatchItemInput[];
 }
 

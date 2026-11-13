@@ -290,6 +290,7 @@ async def render(project: dict, segment_ids: Optional[list[str]], db) -> dict:
             emotion_intensity=s["emotion_intensity"],
             denoise=defaults.get("denoise"),
             sentence_pause_ms=defaults.get("sentence_pause_ms", 0),
+            effects_chain=defaults.get("effects_chain"),
             max_chunk_chars=settings.max_chunk_chars,
             crossfade_ms=settings.crossfade_ms,
             normalize=settings.normalize_audio,

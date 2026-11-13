@@ -234,6 +234,8 @@ class BatchCreate(BaseModel):
     seed: Optional[int] = Field(None, ge=0)
     denoise: Optional[float] = Field(None, ge=0.0, le=1.0)
     sentence_pause_ms: int = Field(0, ge=0, le=3000)
+    # None = the voice's own effects, [] = none.
+    effects_chain: Optional[List[dict]] = None
     items: List[BatchItemIn] = Field(..., min_length=1, max_length=batch_service.MAX_ITEMS)
 
 
@@ -255,6 +257,7 @@ def _batch_request(settings: dict, text: str, db: Session) -> models.GenerationR
         emotion_intensity=settings.get("emotion_intensity", 0.6),
         denoise=settings.get("denoise"),
         sentence_pause_ms=settings.get("sentence_pause_ms", 0),
+        effects_chain=settings.get("effects_chain"),
         max_chunk_chars=gen_settings.max_chunk_chars,
         crossfade_ms=gen_settings.crossfade_ms,
         normalize=gen_settings.normalize_audio,

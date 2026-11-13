@@ -218,6 +218,8 @@ class PyTorchTTSBackend:
         # Load model
         await self.load_model_async(None)
 
+        from ..services import extras
+
         def _generate_sync():
             """Run synchronous generation in thread pool."""
             # Set seed if provided
@@ -232,6 +234,7 @@ class PyTorchTTSBackend:
                     voice_clone_prompt=voice_prompt,
                     language=LANGUAGE_CODE_TO_NAME.get(language, "auto"),
                     instruct=instruct,
+                    **extras.model_params("qwen"),
                 )
             return wavs[0], sample_rate
 

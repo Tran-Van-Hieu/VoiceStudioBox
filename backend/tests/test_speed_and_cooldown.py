@@ -44,6 +44,7 @@ def test_omnivoice_gets_speed_and_steps_as_model_arguments(_settings):
             seen.update(kwargs)
             return [np.zeros(10, dtype=np.float32)]
 
+    _settings["model_params"] = {"omnivoice": {"guidance_scale": 3.0, "denoise": False}}
     backend = OmniVoiceBackend()
     backend.model = FakeModel()
     backend._device = "cpu"
@@ -51,6 +52,21 @@ def test_omnivoice_gets_speed_and_steps_as_model_arguments(_settings):
         asyncio.run(backend.generate("xin chào", {}, "vi"))
     assert seen["num_step"] == 32
     assert seen["speed"] == pytest.approx(0.9 / 1.15)
+    assert seen["guidance_scale"] == 3.0 and seen["denoise"] is False
+
+
+def test_model_params_are_clamped_and_unknown_ones_dropped():
+    clean = extras._sanitize(
+        "model_params",
+        {
+            "omnivoice": {"guidance_scale": 99, "bogus": 1, "denoise": 0},
+            "qwen": {"top_k": "500", "temperature": None},
+            "chatterbox": {"exaggeration": 1},
+            "qwen_voice_design": {},
+        },
+    )
+    assert clean == {"omnivoice": {"guidance_scale": 5.0, "denoise": False}, "qwen": {"top_k": 200}}
+    assert extras._sanitize("omnivoice_steps", 8) == 16
 
 
 def test_queue_rests_only_between_different_scripts(monkeypatch, _settings):

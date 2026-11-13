@@ -200,6 +200,8 @@ class QwenVoiceDesignBackend:
         else:
             combined_instruct = design_prompt
 
+        from ..services import extras
+
         def _generate_sync():
             if seed is not None:
                 torch.manual_seed(seed)
@@ -217,6 +219,7 @@ class QwenVoiceDesignBackend:
                     text=text,
                     instruct=combined_instruct,
                     language=lang_name.capitalize() if lang_name != "auto" else "Auto",
+                    **extras.model_params("qwen_voice_design"),
                 )
             return wavs[0], sample_rate
 

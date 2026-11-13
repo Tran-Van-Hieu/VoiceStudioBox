@@ -53,12 +53,64 @@ DEFAULTS: dict[str, Any] = {
     "qc_whisper_model": "turbo",
     # OmniVoice decoding steps: 32 is the model's own default, 16 is twice as fast.
     "omnivoice_steps": 32,
+    # Per-engine sampling knobs ({engine: {name: value}}); a missing name keeps
+    # the model's own default. Ranges live in MODEL_PARAMS.
+    "model_params": {},
     # Rest between two different batches/scripts: models are unloaded, then the
     # queue waits this long before the next one starts. 0 = no rest.
     "queue_cooldown_seconds": 120,
     # sample id -> emotion, for profiles with one take per emotion.
     "sample_emotions": {},
 }
+
+_QWEN_PARAMS = {
+    "do_sample": (bool, None, None),
+    "temperature": (float, 0.1, 2.0),
+    "top_k": (int, 1, 200),
+    "top_p": (float, 0.1, 1.0),
+    "repetition_penalty": (float, 1.0, 2.0),
+    "subtalker_temperature": (float, 0.1, 2.0),
+    "subtalker_top_k": (int, 1, 200),
+    "subtalker_top_p": (float, 0.1, 1.0),
+    "max_new_tokens": (int, 256, 8192),
+}
+# engine -> name -> (type, min, max). Mirrors app/src/lib/constants/modelParams.ts.
+MODEL_PARAMS: dict[str, dict[str, tuple]] = {
+    "omnivoice": {
+        "guidance_scale": (float, 0.0, 5.0),
+        "t_shift": (float, 0.01, 1.0),
+        "position_temperature": (float, 0.0, 10.0),
+        "class_temperature": (float, 0.0, 2.0),
+        "layer_penalty_factor": (float, 0.0, 10.0),
+        "denoise": (bool, None, None),
+        "postprocess_output": (bool, None, None),
+    },
+    "qwen": _QWEN_PARAMS,
+    "qwen_voice_design": _QWEN_PARAMS,
+}
+
+
+def _sanitize_model_params(value: Any) -> dict[str, dict[str, Any]]:
+    clean: dict[str, dict[str, Any]] = {}
+    for engine, params in dict(value or {}).items():
+        spec = MODEL_PARAMS.get(engine)
+        if not spec or not isinstance(params, dict):
+            continue
+        out: dict[str, Any] = {}
+        for name, raw in params.items():
+            if name not in spec or raw is None:
+                continue
+            kind, lo, hi = spec[name]
+            out[name] = bool(raw) if kind is bool else kind(min(hi, max(lo, kind(raw))))
+        if out:
+            clean[engine] = out
+    return clean
+
+
+def model_params(engine: str) -> dict[str, Any]:
+    """Saved sampling overrides for one engine, ready to pass as kwargs."""
+    return dict((get("model_params") or {}).get(engine) or {})
+
 
 _ALLOWED_FORMATS = {"wav", "mp3", "flac"}
 _ALLOWED_BITRATES = {96, 128, 160, 192, 256, 320}
@@ -154,7 +206,9 @@ def _sanitize(key: str, value: Any) -> Any:
             raise ValueError("qc_mode must be 'off', 'omnivoice' or 'all'")
         return v
     if key == "omnivoice_steps":
-        return max(8, min(64, int(value)))
+        return max(16, min(64, int(value)))
+    if key == "model_params":
+        return _sanitize_model_params(value)
     if key == "queue_cooldown_seconds":
         return max(0, min(3600, int(value)))
     if key == "qc_max_retries":

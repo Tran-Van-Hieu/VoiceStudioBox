@@ -49,6 +49,7 @@ import {
   WordDiffList,
   wordDiffOf,
 } from './common';
+import { effectsChainFor, useEffectPresets, VoiceTuning } from './VoiceTuning';
 
 function modelValue(s: StudioSegment) {
   if (!s.engine) return null;
@@ -323,6 +324,23 @@ export function StudioTab({ embedded = false }: { embedded?: boolean }) {
     },
     onError: handleError,
   });
+  const { data: presets } = useEffectPresets();
+  // The slider moves locally; the project is saved once it stops moving.
+  const [denoise, setDenoise] = useState(0);
+  const savedDenoise = project?.defaults.denoise ?? 0;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reseed only when another project opens
+  useEffect(() => setDenoise(savedDenoise), [project?.id]);
+  useEffect(() => {
+    if (!project || denoise === savedDenoise) return;
+    const timer = setTimeout(
+      () =>
+        updateProject.mutate({
+          defaults: { ...project.defaults, denoise: denoise > 0 ? denoise : undefined },
+        }),
+      400,
+    );
+    return () => clearTimeout(timer);
+  }, [denoise, savedDenoise, project, updateProject]);
   const importScript = useMutation({
     mutationFn: async (file?: File) => {
       await flush();
@@ -565,6 +583,21 @@ export function StudioTab({ embedded = false }: { embedded?: boolean }) {
                 />
               </Field>
             </Panel>
+            <VoiceTuning
+              engine={project.defaults.engine ?? 'omnivoice'}
+              denoise={denoise}
+              onDenoise={setDenoise}
+              effects={project.defaults.effects ?? 'voice'}
+              onEffects={(effects) =>
+                updateProject.mutate({
+                  defaults: {
+                    ...project.defaults,
+                    effects,
+                    effects_chain: effectsChainFor(effects, presets) ?? null,
+                  },
+                })
+              }
+            />
             <Panel title={t('studio.adv.import')}>
               <Textarea
                 value={script}

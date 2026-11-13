@@ -45,6 +45,12 @@ import {
   WordDiffList,
   wordDiffOf,
 } from './common';
+import {
+  type EffectsChoice,
+  effectsChainFor,
+  useEffectPresets,
+  VoiceTuning,
+} from './VoiceTuning';
 
 const PROJECT_KEY = 'voicebox.scriptProject';
 
@@ -165,6 +171,9 @@ export function ScriptTab() {
   const [speedChoice, setSpeed] = useState<number | null>(null);
   const speed = speedChoice ?? extras?.speed ?? 1;
   const [pause, setPause] = useState(250);
+  const [denoise, setDenoise] = useState(0);
+  const [effects, setEffects] = useState<EffectsChoice>('voice');
+  const { data: presets } = useEffectPresets();
   const playing = useRef<HTMLAudioElement | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   // A text edit saves on blur; regenerating right after must wait for that save.
@@ -209,6 +218,8 @@ export function ScriptTab() {
     if (d.engine) setModel(d.engine === 'qwen' ? `qwen:${d.model_size ?? '1.7B'}` : d.engine);
     if (d.speed) setSpeed(d.speed);
     if (d.sentence_pause_ms !== undefined) setPause(d.sentence_pause_ms);
+    setDenoise(d.denoise ?? 0);
+    setEffects(d.effects ?? 'voice');
   }, [project]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: only seeds a fresh page
   useEffect(() => {
@@ -225,6 +236,9 @@ export function ScriptTab() {
     model_size: modelSize ?? undefined,
     sentence_pause_ms: pause,
     speed,
+    denoise: denoise > 0 ? denoise : undefined,
+    effects,
+    effects_chain: effectsChainFor(effects, presets) ?? null,
   };
 
   const split = useMutation({
@@ -440,6 +454,13 @@ export function ScriptTab() {
             onChange={setPause}
           />
         </Panel>
+        <VoiceTuning
+          engine={engine}
+          denoise={denoise}
+          onDenoise={setDenoise}
+          effects={effects}
+          onEffects={setEffects}
+        />
         {segments.length > 0 && project && (
           <Panel title={t('studio.adv.output')}>
             {project.pending ? (

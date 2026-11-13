@@ -23,6 +23,12 @@ import {
   WordDiffList,
   wordDiffOf,
 } from '@/components/Studio/common';
+import {
+  type EffectsChoice,
+  effectsChainFor,
+  useEffectPresets,
+  VoiceTuning,
+} from '@/components/Studio/VoiceTuning';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -101,6 +107,8 @@ export function BatchTab() {
   const [emotion, setEmotion] = useState<EmotionId>('neutral');
   const [emotionIntensity, setEmotionIntensity] = useState(0.6);
   const [denoise, setDenoise] = useState(0);
+  const [effects, setEffects] = useState<EffectsChoice>('voice');
+  const { data: presets } = useEffectPresets();
 
   useEffect(() => {
     if (!profileId && profiles?.length) setProfileId(profiles[0].id);
@@ -221,6 +229,7 @@ export function BatchTab() {
         emotion_intensity: emotionIntensity,
         denoise: denoise > 0 ? denoise : undefined,
         sentence_pause_ms: 250,
+        effects_chain: effectsChainFor(effects, presets),
         items,
       });
       setActiveId(b.id);
@@ -476,22 +485,6 @@ export function BatchTab() {
                 aria-label={t('extras.speed.title')}
               />
             </div>
-            <div className="space-y-2">
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>{t('studio.common.denoise')}</span>
-                <span className="tabular-nums">
-                  {denoise ? `${Math.round(denoise * 100)}%` : t('studio.common.off')}
-                </span>
-              </div>
-              <Slider
-                value={[denoise]}
-                onValueChange={([v]) => setDenoise(v)}
-                min={0}
-                max={1}
-                step={0.1}
-                aria-label={t('studio.common.denoise')}
-              />
-            </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <span className="text-xs text-muted-foreground">{t('emotion.label')}</span>
@@ -527,6 +520,13 @@ export function BatchTab() {
             <p className="text-xs text-muted-foreground">
               {t(`emotion.support.${emotionSupport(engine)}`)}
             </p>
+            <VoiceTuning
+              engine={engine}
+              denoise={denoise}
+              onDenoise={setDenoise}
+              effects={effects}
+              onEffects={setEffects}
+            />
             <Button
               className="w-full"
               onClick={start}
