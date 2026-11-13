@@ -1,0 +1,161 @@
+{
+  "nav": { "batch": "Batch" },
+  "settings": { "tabs": { "pronunciation": "Pronunciation", "vram": "VRAM" } },
+  "extras": {
+    "speed": {
+      "sectionTitle": "Reading speed",
+      "sectionDescription": "Applies to every engine after synthesis. Pitch is preserved.",
+      "title": "Speed",
+      "description": "Default speed for new generations, batches and API/MCP calls.",
+      "value": "{{speed}}×",
+      "reset": "Reset to 1.0×"
+    },
+    "export": {
+      "sectionTitle": "Export & loudness",
+      "sectionDescription": "Defaults used when downloading audio from History and Batch.",
+      "format": {
+        "title": "Default file format",
+        "description": "WAV is lossless and largest, FLAC is lossless and smaller, MP3 is smallest."
+      },
+      "bitrate": {
+        "title": "MP3 bitrate",
+        "description": "Higher is better quality and a bigger file. 192 kbps suits most voice work."
+      },
+      "loudness": {
+        "title": "Loudness normalization",
+        "description": "Brings every generation to the same perceived loudness (EBU R128, peak capped at -1 dBFS). Applies to new generations.",
+        "presets": {
+          "off": "Off (peak normalize only)",
+          "streaming": "-14 LUFS · YouTube / Spotify",
+          "podcast": "-16 LUFS · Podcast (stereo)",
+          "mono": "-19 LUFS · Podcast (mono)",
+          "broadcast": "-23 LUFS · Broadcast (EBU)"
+        }
+      }
+    },
+    "pronunciation": {
+      "title": "Pronunciation dictionary",
+      "description": "Words, names and abbreviations are rewritten before they reach the voice engine, so they are read the way you want. History and subtitles keep your original text.",
+      "enable": {
+        "title": "Use the dictionary",
+        "description": "Turn off to read text exactly as written."
+      },
+      "add": "Add word",
+      "import": "Import CSV",
+      "export": "Export CSV",
+      "save": "Save",
+      "saved": "Dictionary saved",
+      "saveFailed": "Could not save the dictionary",
+      "unsaved": "Unsaved changes",
+      "empty": "No entries yet. Add a word, or import a CSV with two columns: written form, spoken form.",
+      "importHint": "CSV format: one entry per line, \"written,spoken\" (comma, semicolon or tab). Longer entries win over shorter ones, and replacements are never re-replaced.",
+      "imported": "Imported {{count}} entries — remember to save",
+      "importEmpty": "No entries found in that file",
+      "duplicate": "Duplicate entry",
+      "remove": "Remove",
+      "toPlaceholder": "How it should be read",
+      "columns": {
+        "from": "Written",
+        "to": "Read as",
+        "wholeWord": "Whole word",
+        "caseSensitive": "Match case",
+        "enabled": "On"
+      },
+      "test": {
+        "title": "Try it",
+        "placeholder": "Type a sentence to see what the engine will actually read…",
+        "run": "Preview"
+      }
+    },
+    "vram": {
+      "title": "GPU memory (VRAM)",
+      "description": "Live usage of your graphics card and the models currently loaded.",
+      "free": "Free",
+      "allocated": "Used by models",
+      "reserved": "Reserved by PyTorch",
+      "noCuda": "No CUDA GPU detected — models run on the CPU, so VRAM management does not apply.",
+      "loadedModels": "Loaded models",
+      "noneLoaded": "No models loaded.",
+      "inUse": "generating",
+      "unloadTts": "Unload voice models",
+      "unloadAll": "Unload everything",
+      "unloaded": "Unloaded: {{models}}",
+      "nothingToUnload": "Nothing to unload",
+      "autoTitle": "Automatic management",
+      "idle": {
+        "title": "Free voice models when idle",
+        "description": "Unload TTS models after this long without generating. The next generation reloads the model (a few seconds).",
+        "never": "Never",
+        "minutes_one": "After {{count}} minute",
+        "minutes_other": "After {{count}} minutes"
+      },
+      "exclusive": {
+        "title": "One voice engine at a time",
+        "description": "Unload other TTS engines before loading a new one, so switching engines never overflows VRAM. Recommended for 8 GB cards."
+      }
+    },
+    "refinePrompt": {
+      "title": "Custom prompt for the LLM",
+      "description": "Your own instructions for the model that cleans up transcripts.",
+      "modeAppend": "Add to built-in rules",
+      "modeReplace": "Replace built-in prompt",
+      "replaceWarning": "Replace mode ignores the toggles above and the built-in examples — the model only sees your prompt.",
+      "save": "Save prompt",
+      "clear": "Clear",
+      "useExample": "Use an example"
+    },
+    "history": {
+      "exportFlac": "Download FLAC",
+      "exportSrt": "Download subtitles (.srt)",
+      "srtFailed": "Could not export subtitles"
+    }
+  },
+  "batch": {
+    "title": "Batch generation",
+    "description": "Turn a .txt or .csv file into many audio files at once — download them separately or merged into one, with matching subtitles.",
+    "input": {
+      "title": "1. Text",
+      "chooseFile": "Choose .txt / .csv file",
+      "splitParagraph": "One item per paragraph",
+      "splitLine": "One item per line",
+      "hint": "CSV: a \"text\" column (or the first column) and an optional \"filename\" column. TXT: paragraphs separated by a blank line, or one line per item.",
+      "pastePlaceholder": "…or paste text here",
+      "usePasted": "Use pasted text",
+      "empty": "No text found in that file",
+      "parseFailed": "Could not read the file"
+    },
+    "preview": {
+      "title": "{{count}} items · {{chars}} characters",
+      "clear": "Clear",
+      "filenamePlaceholder": "File name (optional)",
+      "remove": "Remove item"
+    },
+    "voice": {
+      "title": "2. Voice",
+      "profile": "Voice",
+      "profilePlaceholder": "Choose a voice",
+      "engine": "Engine",
+      "language": "Language",
+      "name": "Batch name",
+      "namePlaceholder": "e.g. Chapter 1"
+    },
+    "start": "Generate {{count}} items",
+    "started": "Queued {{count}} items",
+    "startFailed": "Could not start the batch",
+    "downloadFailed": "Download failed",
+    "progress": {
+      "summary": "{{done}} done · {{failed}} failed · {{total}} total",
+      "none": "No batches yet. Load a file on the left to start."
+    },
+    "download": {
+      "title": "3. Download",
+      "format": "Format",
+      "includeSrt": "Include subtitles (.srt)",
+      "gap": "Pause between items (merged)",
+      "files": "Separate files (ZIP)",
+      "merged": "One merged file",
+      "removeBatch": "Remove batch",
+      "failedNote": "Failed items are skipped. Use Retry in History, then download again."
+    }
+  }
+}

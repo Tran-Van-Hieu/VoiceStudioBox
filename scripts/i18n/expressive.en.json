@@ -1,0 +1,50 @@
+{
+  "emotion": {
+    "label": "Emotion",
+    "intensity": "Intensity",
+    "insertTag": "Insert tag…",
+    "sampleLabel": "Emotion of this sample",
+    "sampleHint": "Cloning follows the delivery of its sample. Give a voice one take per emotion and the matching one is used.",
+    "names": {
+      "neutral": "Neutral",
+      "happy": "Happy",
+      "sad": "Sad",
+      "angry": "Angry",
+      "excited": "Excited",
+      "calm": "Calm",
+      "serious": "Serious",
+      "fearful": "Fearful",
+      "whisper": "Whisper",
+      "storytelling": "Storytelling"
+    },
+    "support": {
+      "direct": "This engine acts on the emotion directly.",
+      "intensity": "This engine changes how expressive the voice is; pitch and pace add the rest.",
+      "reference": "This engine copies the emotion of its sample. For the strongest effect, add a sample recorded in that emotion and tag it in the voice's sample list.",
+      "prosody": "This engine has no emotion control, so only pace, pitch and level change."
+    }
+  },
+  "extras": {
+    "qc": {
+      "sectionTitle": "Reading accuracy",
+      "sectionDescription": "Whisper listens to each generated passage and regenerates the ones with missing words or stray sounds.",
+      "mode": {
+        "title": "Check generated speech",
+        "description": "Generation takes longer because every passage is checked. Needs the Whisper Turbo model.",
+        "omnivoice": "OmniVoice only (recommended)",
+        "all": "All engines",
+        "off": "Off"
+      },
+      "retries": {
+        "title": "Retries per passage",
+        "description": "The best attempt is kept if none passes."
+      }
+    },
+    "quality": {
+      "menu": "Quality report",
+      "notChecked": "This generation was not checked",
+      "summary": "{{checked}} passages checked · {{retried}} regenerated · {{failed}} unresolved",
+      "allGood": "Every passage passed the check."
+    }
+  }
+}

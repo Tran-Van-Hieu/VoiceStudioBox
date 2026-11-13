@@ -1,0 +1,50 @@
+{
+  "emotion": {
+    "label": "Cảm xúc",
+    "intensity": "Cường độ",
+    "insertTag": "Chèn thẻ…",
+    "sampleLabel": "Cảm xúc của mẫu này",
+    "sampleHint": "Giọng clone sẽ bắt chước cách đọc của mẫu. Thêm cho giọng mỗi cảm xúc một mẫu, app sẽ dùng đúng mẫu tương ứng.",
+    "names": {
+      "neutral": "Bình thường",
+      "happy": "Vui",
+      "sad": "Buồn",
+      "angry": "Giận",
+      "excited": "Hào hứng",
+      "calm": "Nhẹ nhàng",
+      "serious": "Nghiêm túc",
+      "fearful": "Sợ hãi",
+      "whisper": "Thì thầm",
+      "storytelling": "Kể chuyện"
+    },
+    "support": {
+      "direct": "Engine này thể hiện cảm xúc trực tiếp.",
+      "intensity": "Engine này chỉnh độ biểu cảm của giọng; cao độ và nhịp đọc bổ sung phần còn lại.",
+      "reference": "Engine này bắt chước cảm xúc của giọng mẫu. Muốn rõ nhất, hãy thêm một mẫu thu đúng cảm xúc đó và gắn nhãn trong danh sách mẫu của giọng.",
+      "prosody": "Engine này không điều khiển được cảm xúc, nên chỉ thay đổi nhịp đọc, cao độ và âm lượng."
+    }
+  },
+  "extras": {
+    "qc": {
+      "sectionTitle": "Độ chính xác khi đọc",
+      "sectionDescription": "Whisper nghe lại từng đoạn đã tạo và tạo lại những đoạn bị thiếu chữ hoặc có âm lạ.",
+      "mode": {
+        "title": "Kiểm tra giọng đã tạo",
+        "description": "Thời gian tạo sẽ lâu hơn vì đoạn nào cũng được kiểm tra. Cần model Whisper Turbo.",
+        "omnivoice": "Chỉ OmniVoice (khuyên dùng)",
+        "all": "Tất cả engine",
+        "off": "Tắt"
+      },
+      "retries": {
+        "title": "Số lần tạo lại mỗi đoạn",
+        "description": "Nếu không lần nào đạt, app giữ lại lần tốt nhất."
+      }
+    },
+    "quality": {
+      "menu": "Báo cáo chất lượng",
+      "notChecked": "Bản tạo này chưa được kiểm tra",
+      "summary": "Đã kiểm tra {{checked}} đoạn · tạo lại {{retried}} · còn {{failed}} đoạn chưa đạt",
+      "allGood": "Mọi đoạn đều đạt."
+    }
+  }
+}
