@@ -14,6 +14,7 @@ stop the cell when done; add an auth proxy before sharing a server with others.
 """
 
 import argparse
+import json
 import os
 import re
 import shutil
@@ -24,6 +25,7 @@ import threading
 import time
 import urllib.request
 from pathlib import Path
+from typing import Optional
 
 ROOT = Path(__file__).resolve().parent.parent
 CLOUDFLARED = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
@@ -46,16 +48,86 @@ def install() -> None:
         pip("--no-deps", package)
 
 
-def build_web() -> None:
-    """Build the browser UI into ROOT/frontend, which the backend serves at /."""
-    if (ROOT / "frontend" / "index.html").exists():
+def build_web(cache: Optional[Path] = None) -> None:
+    """Build the browser UI into ROOT/frontend, which the backend serves at /.
+
+    Keyed by git commit, so a `git pull` rebuilds it; a copy in ``cache``
+    (Drive) skips bun entirely on the next session.
+    """
+    commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+    out = ROOT / "frontend"
+    if (out / ".commit").exists() and (out / ".commit").read_text() == commit:
+        return
+    shutil.rmtree(out, ignore_errors=True)
+    saved = cache / "web" if cache else None
+    if saved and (saved / ".commit").exists() and (saved / ".commit").read_text() == commit:
+        shutil.copytree(saved, out)
         return
     bun = shutil.which("bun") or str(Path.home() / ".bun" / "bin" / "bun")
     if not Path(bun).exists():
         subprocess.check_call("curl -fsSL https://bun.sh/install | bash", shell=True)
     subprocess.check_call([bun, "install"], cwd=ROOT)
     subprocess.check_call([bun, "x", "--bun", "vite", "build"], cwd=ROOT / "web")
-    shutil.copytree(ROOT / "web" / "dist", ROOT / "frontend")
+    shutil.copytree(ROOT / "web" / "dist", out)
+    (out / ".commit").write_text(commit)
+    if saved:
+        shutil.rmtree(saved, ignore_errors=True)
+        shutil.copytree(out, saved)
+
+
+# Models kept on Drive and downloaded on the first session.
+PRELOAD_MODELS = ("omnivoice", "qwen-tts-1.7B")
+
+
+def restore_models(saved: Path, hub: Path) -> None:
+    """Copy model files saved on Drive that the local HF cache lacks."""
+    if not saved.exists():
+        return
+    print("Copying saved models from Google Drive...", flush=True)
+    started = time.time()
+    shutil.copytree(saved, hub, dirs_exist_ok=True, ignore=shutil.ignore_patterns("*.tmp"),
+                    copy_function=lambda s, d: None if os.path.exists(d) else shutil.copy2(s, d))
+    print(f"Models ready ({time.time() - started:.0f}s)", flush=True)
+
+
+def _api(port: int, path: str, body: Optional[dict] = None):
+    req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", method="POST" if body is not None else "GET",
+                                 data=json.dumps(body).encode() if body is not None else None,
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=60) as r:
+        return json.load(r)
+
+
+def prepare_models(port: int, save_models) -> None:
+    """Download the main models once, save them to Drive, then report newer versions."""
+    try:
+        _prepare_models(port, save_models)
+    except Exception as e:  # the app works without this; models then download on first use
+        print(f"Model preparation stopped: {e}", flush=True)
+
+
+def _prepare_models(port: int, save_models) -> None:
+    for name in PRELOAD_MODELS:
+        status = {m["model_name"]: m for m in _api(port, "/models/status")["models"]}.get(name)
+        if not status or status["downloaded"]:
+            continue
+        print(f"First run: downloading {status['display_name']}...", flush=True)
+        if not status["downloading"]:
+            _api(port, "/models/download", {"model_name": name})
+        while True:
+            time.sleep(5)
+            status = {m["model_name"]: m for m in _api(port, "/models/status")["models"]}[name]
+            if not status["downloading"]:
+                break
+        print(f"  {status['display_name']}: {'done' if status['downloaded'] else 'FAILED, see the log above'}", flush=True)
+    if save_models:
+        save_models()
+        print("Models saved to Google Drive; next sessions skip the download.", flush=True)
+    for model in _api(port, "/model-updates/check", {}):
+        update = model.get("update") or {}
+        if update.get("available"):
+            print(f"Update available for {' / '.join(model['names'])}: "
+                  "open the app -> Cài đặt -> Model to install it (or keep the current version).", flush=True)
 
 
 # Rebuilt or re-downloaded on demand; not worth copying to Drive.
@@ -94,29 +166,56 @@ def backup(data: Path, persist: Path) -> None:
     for leftover in ("voicebox.db-wal", "voicebox.db-shm"):  # from when the DB lived on Drive
         (persist / leftover).unlink(missing_ok=True)
 
+    mirror(data, persist, lambda rel: rel.parts[0] in SKIP_SYNC or rel.name == "link.txt"
+           or rel.name.endswith((".snapshot", ".tmp")))
+
+
+def mirror(src: Path, dst: Path, skip) -> None:
+    """Copy new or changed files from src to dst and delete files gone from src.
+
+    ``skip(rel)`` leaves a path alone on both sides. Each file goes through a
+    .tmp + rename, so a session killed mid-copy never leaves a torn file.
+    """
+    with _mirror_lock:
+        _mirror(src, dst, skip)
+
+
+_mirror_lock = threading.Lock()  # the minute loop and the first-run model save may overlap
+
+
+def _mirror(src: Path, dst: Path, skip) -> None:
     keep = set()
-    for f in data.rglob("*"):
-        rel = f.relative_to(data)
-        if rel.parts[0] in SKIP_SYNC or not f.is_file() or f.name.endswith(".snapshot"):
+    for f in src.rglob("*"):
+        rel = f.relative_to(src)
+        if skip(rel) or not f.is_file():
             continue
         keep.add(rel)
-        target = persist / rel
+        target = dst / rel
         st = f.stat()
         if not target.exists() or target.stat().st_size != st.st_size or target.stat().st_mtime < st.st_mtime:
             target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(f, target)
-    for f in persist.rglob("*"):  # deleted voices must not come back next session
-        rel = f.relative_to(persist)
-        if f.is_file() and rel not in keep and rel.parts[0] not in SKIP_SYNC and rel.name != "link.txt":
+            tmp = target.with_name(target.name + ".tmp")
+            shutil.copy2(f, tmp)
+            os.replace(tmp, target)
+    for f in dst.rglob("*"):  # deleted voices or model versions must not come back next session
+        rel = f.relative_to(dst)
+        if f.is_file() and rel not in keep and not skip(rel):
             f.unlink()
 
 
-def backup_loop(data: Path, persist: Path, stop: threading.Event, every: int = 60) -> None:
+def _skip_model_file(rel: Path) -> bool:
+    # blobs are what the snapshot symlinks point at; copying the snapshots
+    # dereferences them, so Drive (no symlinks) holds each file once.
+    return "blobs" in rel.parts or ".locks" in rel.parts or rel.name.endswith((".incomplete", ".tmp", ".lock"))
+
+
+def backup_loop(syncs: list, stop: threading.Event, every: int = 60) -> None:
     while not stop.wait(every):
-        try:
-            backup(data, persist)
-        except Exception as e:  # a failed round must not kill the server; the next one retries
-            print(f"Drive backup failed, retrying in {every}s: {e}")
+        for sync in syncs:
+            try:
+                sync()
+            except Exception as e:  # a failed round must not kill the server; the next one retries
+                print(f"Drive backup failed, retrying in {every}s: {e}")
 
 
 def wait_healthy(port: int, seconds: int = 300) -> None:
@@ -137,19 +236,32 @@ def main() -> None:
     ap.add_argument("--no-web", action="store_true", help="API only, for the desktop app")
     ap.add_argument("--no-tunnel", action="store_true", help="bind 0.0.0.0 and print no public URL")
     ap.add_argument("--persist-dir", help="mirror voices and history here (e.g. Google Drive) and restore from it")
+    ap.add_argument("--cache-dir", help="keep models, pip wheels and the built UI here (e.g. Google Drive)")
     args = ap.parse_args()
 
+    cache = Path(args.cache_dir) if args.cache_dir else None
+    if cache:
+        # Reuses wheels built from source (numpy on Python 3.13 takes minutes).
+        os.environ["PIP_CACHE_DIR"] = str(cache / "pip")
     if not args.skip_install:
         install()
     if not args.no_web:
-        build_web()
+        build_web(cache)
 
     data = Path(args.data_dir)
     persist = Path(args.persist_dir) if args.persist_dir else None
-    stop = threading.Event()
+    hub = Path(os.environ.get("HF_HUB_CACHE") or Path.home() / ".cache" / "huggingface" / "hub")
+    syncs = []
+    save_models = None
     if persist:
         restore(persist, data)
-        threading.Thread(target=backup_loop, args=(data, persist, stop), daemon=True).start()
+        syncs.append(lambda: backup(data, persist))
+    if cache:
+        restore_models(cache / "hf", hub)
+        save_models = lambda: mirror(hub, cache / "hf", _skip_model_file)  # noqa: E731
+        syncs.append(save_models)
+    stop = threading.Event()
+    threading.Thread(target=backup_loop, args=(syncs, stop), daemon=True).start()
 
     server = subprocess.Popen(
         [sys.executable, "-m", "backend.main", "--host", "0.0.0.0" if args.no_tunnel else "127.0.0.1",
@@ -183,6 +295,7 @@ def main() -> None:
                 break
         # Keep reading: a full stderr pipe would block cloudflared and freeze the tunnel.
         threading.Thread(target=lambda: [None for _ in tunnel.stderr], daemon=True).start()
+        threading.Thread(target=prepare_models, args=(args.port, save_models), daemon=True).start()
         server.wait()
     except KeyboardInterrupt:  # the ■ button in Colab
         print("\nStopping...")
@@ -194,9 +307,10 @@ def main() -> None:
         except (subprocess.TimeoutExpired, KeyboardInterrupt):  # open browser tabs keep event streams alive
             server.kill()
             server.wait()
-        if persist:
-            backup(data, persist)
-            print(f"Saved voices and history to {persist}")
+        for sync in syncs:
+            sync()
+        if syncs:
+            print("Saved voices, history and models to Google Drive")
 
 
 if __name__ == "__main__":

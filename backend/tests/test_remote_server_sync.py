@@ -71,3 +71,33 @@ def test_stale_wal_on_drive_does_not_roll_back_the_restore(tmp_path):
     remote_server.restore(drive, fresh)
     assert not (fresh / "voicebox.db-wal").exists()
     assert [r[0] for r in sqlite3.connect(fresh / "voicebox.db").execute("SELECT name FROM p")] == ["voice A"]
+
+
+def test_models_saved_once_and_restored(tmp_path):
+    import os
+    import shutil
+
+    hub, drive, fresh = tmp_path / "hub", tmp_path / "drive-hf", tmp_path / "fresh-hub"
+    repo = hub / "models--k2-fsa--OmniVoice"
+    (repo / "blobs").mkdir(parents=True)
+    (repo / "snapshots" / "abc").mkdir(parents=True)
+    (repo / "refs").mkdir()
+    (repo / "refs" / "main").write_text("abc")
+    (repo / "blobs" / "123").write_bytes(b"W" * 100)
+    (repo / "blobs" / "456.incomplete").write_bytes(b"half")
+    try:
+        os.symlink(repo / "blobs" / "123", repo / "snapshots" / "abc" / "model.safetensors")
+    except OSError:  # Windows without developer mode; Linux (Colab) takes the symlink path
+        shutil.copy2(repo / "blobs" / "123", repo / "snapshots" / "abc" / "model.safetensors")
+
+    remote_server.mirror(hub, drive, remote_server._skip_model_file)
+    saved = drive / "models--k2-fsa--OmniVoice"
+    assert (saved / "snapshots" / "abc" / "model.safetensors").read_bytes() == b"W" * 100
+    assert not (saved / "snapshots" / "abc" / "model.safetensors").is_symlink()
+    assert not (saved / "blobs").exists()  # each file stored once on Drive
+
+    (fresh / "models--k2-fsa--OmniVoice" / "refs").mkdir(parents=True)
+    (fresh / "models--k2-fsa--OmniVoice" / "refs" / "main").write_text("local")
+    remote_server.restore_models(drive, fresh)
+    assert (fresh / "models--k2-fsa--OmniVoice" / "snapshots" / "abc" / "model.safetensors").stat().st_size == 100
+    assert (fresh / "models--k2-fsa--OmniVoice" / "refs" / "main").read_text() == "local"  # never overwritten

@@ -59,15 +59,16 @@ Cài bản build (`tauri\src-tauri\target\release\bundle\nsis\`), hoặc build t
 1. Mở [notebook](https://colab.research.google.com/github/Tran-Van-Hieu/VoiceStudioBox/blob/main/colab/VoiceStudioBox.ipynb). Cần đăng nhập Google.
 2. **Thời gian chạy → Thay đổi loại thời gian chạy → T4 GPU → Lưu.**
 3. Bấm ▶. Nếu chọn lưu vào Google Drive, Colab sẽ hỏi quyền truy cập Drive: chọn tài khoản và tick **Chọn tất cả**.
-4. Chờ khoảng 8–10 phút mỗi lần mở (Colab cài lại thư viện) cho đến khi hiện `https://….trycloudflare.com`, rồi mở link đó. App chạy ngay trong trình duyệt.
-5. Lần đầu dùng mỗi model trong phiên, app tải model về (OmniVoice khoảng 3 GB).
+4. Chờ cho đến khi hiện `https://….trycloudflare.com`, rồi mở link đó. App chạy ngay trong trình duyệt.
+5. Lần đầu, app tải sẵn OmniVoice và Qwen3-TTS 1.7B rồi lưu vào thư mục `VoiceStudioBox-cache` trên Drive (khoảng 10 GB, cùng thư viện đã cài và giao diện đã build). Các lần sau chép từ Drive về, không tải lại.
+6. Mỗi lần mở, app kiểm tra bản mới của model và báo trong log. Muốn cập nhật thì vào **Cài đặt → Model**, nếu không thì app giữ bản đang dùng.
 
 Lưu và chia sẻ:
 
 - Giọng đã clone và lịch sử được sao lưu vào thư mục `VoiceStudioBox` trong Google Drive mỗi phút và khi bấm ■. Lần mở sau app tự chép về.
 - Link được ghi vào `VoiceStudioBox/link.txt`. Ai có link đều dùng được đầy đủ app và các giọng của bạn, kể cả xóa: chỉ gửi người tin cậy.
 - Link chỉ chạy khi Colab của bạn đang chạy, và đổi mỗi lần mở.
-- Colab miễn phí tự ngắt khi để không lâu hoặc chạy quá vài giờ. Model phải tải lại ở mỗi phiên.
+- Colab miễn phí tự ngắt khi để không lâu hoặc chạy quá vài giờ.
 
 Trên máy ảo hoặc Kaggle, chạy từ thư mục mã nguồn:
 
