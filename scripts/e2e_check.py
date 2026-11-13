@@ -40,6 +40,7 @@ def main() -> int:
     ap.add_argument("--language", default="vi")
     ap.add_argument("--text", default="Primera frase de prueba. Segunda frase de prueba, un poco más larga.")
     ap.add_argument("--skip-dub", action="store_true")
+    ap.add_argument("--keep-voice", action="store_true", help="leave the cloned voice, e.g. to check it survives a restart")
     args = ap.parse_args()
     B = args.url.rstrip("/")
     s = requests.Session()
@@ -181,6 +182,8 @@ def main() -> int:
     @step("Dọn: xóa bản tạo và giọng thử")
     def _():
         ok(s.delete(f"{B}/history/{state['gen']}"))
+        if args.keep_voice:
+            return f"kept voice {state['profile']}"
         ok(s.delete(f"{B}/profiles/{state['profile']}"))
 
     failed = [r for r in results if not r[1]]
