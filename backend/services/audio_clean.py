@@ -97,7 +97,12 @@ def denoise(audio: np.ndarray, sample_rate: int, strength: float = 1.0) -> np.nd
         return x
     abort.check()
     _ensure_df_importable()
-    from df.enhance import enhance, init_df
+    try:
+        from df.enhance import enhance, init_df
+    except ImportError:
+        # No DeepFilterNet wheels for Python 3.12 (e.g. Colab): keep the audio as is.
+        logger.warning("DeepFilterNet is not installed; skipping noise removal")
+        return x
 
     model, state, _ = init_df(log_level="ERROR")
     try:

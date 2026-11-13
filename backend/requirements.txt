@@ -18,6 +18,10 @@ accelerate>=0.26.0
 huggingface_hub>=0.20.0
 # >=0.1.1 for Qwen3TTSModel.generate_voice_design (the qwen_voice_design engine)
 qwen-tts>=0.1.1
+# Vocal separation for voice cloning and dubbing (services/audio_clean.py).
+# DeepFilterNet (noise removal) is optional: it has no Python 3.12 wheels, so
+# it is not listed here and denoise() skips cleanly when it is missing.
+demucs>=4.0.1
 
 # Chatterbox TTS sub-dependencies (chatterbox-tts itself is installed
 # --no-deps in the setup script because it pins numpy<1.26 / torch==2.6
