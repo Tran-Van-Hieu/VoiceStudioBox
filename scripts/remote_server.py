@@ -34,9 +34,11 @@ def pip(*args: str) -> None:
 
 
 def install() -> None:
-    # Colab ships TensorFlow; transformers then imports it and it crashes against
-    # the numpy/protobuf this app pins (Whisper and speaker checks fail). Unused here.
-    subprocess.call([sys.executable, "-m", "pip", "uninstall", "-y", "-q", "tensorflow", "tf-keras", "keras"])
+    # Colab ships TensorFlow and JAX; transformers imports them when present and
+    # they crash against the numpy/ml_dtypes this app pins (Whisper and speaker
+    # checks fail). Unused here.
+    subprocess.call([sys.executable, "-m", "pip", "uninstall", "-y", "-q",
+                     "tensorflow", "tf-keras", "keras", "jax", "jaxlib", "flax", "optax", "orbax-checkpoint"])
     # Same order as `just setup-python`: these two pin old torch/transformers,
     # so they go in without their dependency lists.
     pip("-r", str(ROOT / "backend" / "requirements.txt"))
@@ -149,7 +151,8 @@ def main() -> None:
         [sys.executable, "-m", "backend.main", "--host", "0.0.0.0" if args.no_tunnel else "127.0.0.1",
          "--port", str(args.port), "--data-dir", args.data_dir],
         cwd=ROOT,
-        env={**os.environ, "VOICEBOX_BACKEND_VARIANT": "cuda", "USE_TF": "0", "TRANSFORMERS_NO_TF": "1"},
+        env={**os.environ, "VOICEBOX_BACKEND_VARIANT": "cuda", "USE_TORCH": "1", "USE_TF": "0", "USE_FLAX": "0", "USE_JAX": "0",
+             "TRANSFORMERS_NO_TF": "1"},
     )
     try:
         wait_healthy(args.port)

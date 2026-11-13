@@ -81,8 +81,10 @@ def main() -> int:
     def _():
         ok(s.post(f"{B}/voicelab/jobs/{state['job']}/select",
                   json={"start": 0, "end": min(state["duration"], 15), "language": args.language}))
-        job = wait(lambda: ok(s.get(f"{B}/voicelab/jobs/{state['job']}")).json(), lambda j: j["stage"] in ("done", "failed"))
-        if job["stage"] == "failed":
+        # A failed selection goes back to "ready" with an error so the user can pick again.
+        job = wait(lambda: ok(s.get(f"{B}/voicelab/jobs/{state['job']}")).json(),
+                   lambda j: j["stage"] in ("done", "failed") or (j["stage"] == "ready" and j.get("error")))
+        if job["stage"] != "done":
             raise RuntimeError(job.get("error"))
         state["ref_text"] = job["result"]["transcript"]
         if not state["ref_text"].strip():
