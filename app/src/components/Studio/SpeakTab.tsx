@@ -20,6 +20,7 @@ import { apiClient } from '@/lib/api/client';
 import { extrasApi, type ExportFormat } from '@/lib/api/extras';
 import { studioApi } from '@/lib/api/studio';
 import type { GenerationRequest } from '@/lib/api/types';
+import { useExtrasSettings } from '@/lib/hooks/useExtras';
 import { EMOTIONS, type EmotionId, emotionSupport } from '@/lib/constants/emotions';
 import { useProfiles } from '@/lib/hooks/useProfiles';
 import { usePlayerStore } from '@/stores/playerStore';
@@ -76,6 +77,7 @@ function SingleSpeak() {
   const setAudio = usePlayerStore((s) => s.setAudioWithAutoPlay);
   const { data: profiles } = useProfiles();
   const fileRef = useRef<HTMLInputElement>(null);
+  const { settings: extras, update: updateExtras } = useExtrasSettings();
 
   const [text, setText] = useState('');
   const [profileId, setProfileId] = useState<string | null>(null);
@@ -298,6 +300,24 @@ function SingleSpeak() {
           <Field label={t('studio.common.model')}>
             <ModelPicker value={model} onChange={setModel} language={language} profile={profile} />
           </Field>
+          {engine === 'omnivoice' && (
+            // Same server setting as Settings -> OmniVoice quality, so both stay in sync.
+            <Field label={t('extras.qc.steps.title')} hint={t('extras.qc.steps.description')}>
+              <Select
+                value={String(extras?.omnivoice_steps ?? 32)}
+                onValueChange={(v) => updateExtras({ omnivoice_steps: Number(v) })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="16">{t('extras.qc.steps.fast')}</SelectItem>
+                  <SelectItem value="32">{t('extras.qc.steps.standard')}</SelectItem>
+                  <SelectItem value="48">{t('extras.qc.steps.best')}</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+          )}
           {!languageOk && <ErrorNote>{t('studio.speak.modelLanguage')}</ErrorNote>}
           {bestSeed !== undefined && (
             <p className="text-xs text-muted-foreground">{t('studio.speak.bestSeed')}</p>
