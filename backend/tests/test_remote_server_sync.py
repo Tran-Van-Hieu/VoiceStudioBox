@@ -101,3 +101,19 @@ def test_models_saved_once_and_restored(tmp_path):
     remote_server.restore_models(drive, fresh)
     assert (fresh / "models--k2-fsa--OmniVoice" / "snapshots" / "abc" / "model.safetensors").stat().st_size == 100
     assert (fresh / "models--k2-fsa--OmniVoice" / "refs" / "main").read_text() == "local"  # never overwritten
+
+
+def test_mirror_does_not_recopy_when_drive_rounds_mtime(tmp_path):
+    import os
+
+    src, dst = tmp_path / "src", tmp_path / "dst"
+    src.mkdir()
+    (src / "model.bin").write_bytes(b"M" * 50)
+    os.utime(src / "model.bin", (1000.9, 1000.9))
+    remote_server.mirror(src, dst, lambda rel: False)
+    os.utime(dst / "model.bin", (1000.0, 1000.0))  # Drive kept whole seconds only
+    (dst / "model.bin").write_bytes(b"M" * 50)  # same size, marks whether it gets replaced
+    os.utime(dst / "model.bin", (1000.0, 1000.0))
+    before = (dst / "model.bin").stat().st_ino, (dst / "model.bin").stat().st_mtime
+    remote_server.mirror(src, dst, lambda rel: False)
+    assert ((dst / "model.bin").stat().st_ino, (dst / "model.bin").stat().st_mtime) == before

@@ -185,6 +185,7 @@ _mirror_lock = threading.Lock()  # the minute loop and the first-run model save 
 
 def _mirror(src: Path, dst: Path, skip) -> None:
     keep = set()
+    copied = 0
     for f in src.rglob("*"):
         rel = f.relative_to(src)
         if skip(rel) or not f.is_file():
@@ -192,11 +193,14 @@ def _mirror(src: Path, dst: Path, skip) -> None:
         keep.add(rel)
         target = dst / rel
         st = f.stat()
-        if not target.exists() or target.stat().st_size != st.st_size or target.stat().st_mtime < st.st_mtime:
+        if not target.exists() or target.stat().st_size != st.st_size or target.stat().st_mtime + 2 < st.st_mtime:  # Drive rounds mtimes
             target.parent.mkdir(parents=True, exist_ok=True)
             tmp = target.with_name(target.name + ".tmp")
             shutil.copy2(f, tmp)
             os.replace(tmp, target)
+            copied += st.st_size
+    if copied > 50 * 2**20:
+        print(f"Saved {copied / 2**20:.0f} MB to {dst}", flush=True)
     for f in dst.rglob("*"):  # deleted voices or model versions must not come back next session
         rel = f.relative_to(dst)
         if f.is_file() and rel not in keep and not skip(rel):
