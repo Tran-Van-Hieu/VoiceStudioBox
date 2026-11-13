@@ -18,25 +18,19 @@ import type { GenerationFormValues } from '@/lib/hooks/useGenerationForm';
  */
 export const ENGINE_OPTIONS = [
   { value: 'qwen:1.7B', label: 'Qwen3-TTS 1.7B', engine: 'qwen' },
-  { value: 'qwen:0.6B', label: 'Qwen3-TTS 0.6B', engine: 'qwen' },
-  { value: 'qwen_custom_voice:1.7B', label: 'Qwen CustomVoice 1.7B', engine: 'qwen_custom_voice' },
-  { value: 'qwen_custom_voice:0.6B', label: 'Qwen CustomVoice 0.6B', engine: 'qwen_custom_voice' },
   { value: 'qwen_voice_design', label: 'Qwen VoiceDesign 1.7B', engine: 'qwen_voice_design' },
-  { value: 'chatterbox', label: 'Chatterbox', engine: 'chatterbox' },
   { value: 'omnivoice', label: 'OmniVoice (non-commercial)', engine: 'omnivoice' },
 ] as const;
 
 const ENGINE_DESCRIPTIONS: Record<string, string> = {
-  qwen: 'Multi-language, two sizes',
-  qwen_custom_voice: '9 preset voices, instruct control',
+  qwen: 'Multi-language voice cloning',
   qwen_voice_design: 'Voices described in plain language',
-  chatterbox: '23 languages, incl. Hebrew',
   omnivoice:
     '24 languages incl. Vietnamese, very close voice match. CC-BY-NC weights: non-commercial use only',
 };
 
 /** Engines that support cloned (reference audio) profiles. */
-const CLONING_ENGINES = new Set(['qwen', 'chatterbox', 'omnivoice']);
+const CLONING_ENGINES = new Set(['qwen', 'omnivoice']);
 
 /** Engines that synthesise a voice from a written description. */
 export const DESIGN_ENGINES = new Set(['qwen_voice_design']);
@@ -46,23 +40,13 @@ function getAvailableOptions(selectedProfile?: VoiceProfileResponse | null) {
   return ENGINE_OPTIONS.filter((opt) => isProfileCompatibleWithEngine(selectedProfile, opt.engine));
 }
 
-function getSelectValue(engine: string, modelSize?: string): string {
-  if (engine === 'qwen') return `qwen:${modelSize || '1.7B'}`;
-  if (engine === 'qwen_custom_voice') return `qwen_custom_voice:${modelSize || '1.7B'}`;
+function getSelectValue(engine: string): string {
+  if (engine === 'qwen') return 'qwen:1.7B';
   return engine;
 }
 
 export function applyEngineSelection(form: UseFormReturn<GenerationFormValues>, value: string) {
-  if (value.startsWith('qwen_custom_voice:')) {
-    const [, modelSize] = value.split(':');
-    form.setValue('engine', 'qwen_custom_voice');
-    form.setValue('modelSize', modelSize as '1.7B' | '0.6B');
-    const currentLang = form.getValues('language');
-    const available = getLanguageOptionsForEngine('qwen_custom_voice');
-    if (!available.some((l) => l.value === currentLang)) {
-      form.setValue('language', available[0]?.value ?? 'en');
-    }
-  } else if (value.startsWith('qwen:')) {
+  if (value.startsWith('qwen:')) {
     const [, modelSize] = value.split(':');
     form.setValue('engine', 'qwen');
     form.setValue('modelSize', modelSize as '1.7B' | '0.6B');
@@ -92,8 +76,7 @@ interface EngineModelSelectorProps {
 
 export function EngineModelSelector({ form, compact, selectedProfile }: EngineModelSelectorProps) {
   const engine = form.watch('engine') || 'qwen';
-  const modelSize = form.watch('modelSize');
-  const selectValue = getSelectValue(engine, modelSize);
+  const selectValue = getSelectValue(engine);
   const availableOptions = getAvailableOptions(selectedProfile);
 
   const currentEngineAvailable = availableOptions.some((opt) => opt.value === selectValue);

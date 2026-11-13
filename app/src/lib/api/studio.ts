@@ -55,6 +55,14 @@ export interface SystemStatus {
 
 export type QualityLevel = 'green' | 'yellow' | 'red';
 
+/** One word-level difference between the text and what Whisper heard. */
+export interface WordDiffOp {
+  op: 'missing' | 'extra' | 'wrong';
+  expected: string;
+  heard: string;
+  at: number;
+}
+
 export interface QualityIssue {
   kind: 'words' | 'voice' | 'pause' | 'clipping' | 'clicks' | 'noise' | 'chunks';
   severity: 'yellow' | 'red';
@@ -64,6 +72,7 @@ export interface QualityIssue {
   text?: string;
   heard?: string;
   segments?: number[];
+  diff?: WordDiffOp[];
 }
 
 export interface FinalCheck {
@@ -78,6 +87,7 @@ export interface FinalCheck {
     lufs: number | null;
   };
   issues: QualityIssue[];
+  match?: 'exact' | 'tolerant';
 }
 
 export interface QualityResponse {

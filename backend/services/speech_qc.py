@@ -48,15 +48,58 @@ _MAX_CLIP_RATIO = 0.01
 MAX_CLICKS_PER_MIN = 30.0
 
 
-def _words(text: str, language: str) -> list[str]:
+_NUMBER_RE = re.compile(r"\d+(?:[.,]\d+)*")
+
+
+def _spell_numbers(text: str, language: str) -> str:
+    """Write digits out as words, so "4" and "cuatro" count as the same word."""
+    from num2words import num2words
+
+    def spell(m: re.Match) -> str:
+        raw = m[0]
+        head, sep, tail = raw.rpartition(",") if "," in raw else raw.rpartition(".")
+        # "1.000" / "1,000" is a thousands separator, "2,5" / "2.5" a decimal.
+        if sep and len(tail) != 3:
+            value: float | int = float(f"{head.replace('.', '').replace(',', '')}.{tail}")
+        else:
+            value = int(raw.replace(".", "").replace(",", ""))
+        try:
+            return " " + num2words(value, lang=language) + " "
+        except (NotImplementedError, OverflowError):
+            return raw  # num2words has no rules for this language
+
+    return _NUMBER_RE.sub(spell, text)
+
+
+def _words(text: str, language: str, tones: bool = False) -> list[str]:
     text = _TAG_RE.sub(" ", text)
     if language == "vi":
         # Whisper writes "TP.HCM" and "2026" for what was spoken in full.
         text = _HCMC_RE.sub("thành phố Hồ Chí Minh", text)
         text = normalize_vietnamese(text)
+    else:
+        text = _spell_numbers(text, language)
     text = unicodedata.normalize("NFD", text.casefold())
-    text = "".join(c for c in text if not unicodedata.combining(c)).replace("đ", "d")
-    return _NON_WORD_RE.sub(" ", text).split()
+    if not tones:
+        text = "".join(c for c in text if not unicodedata.combining(c)).replace("đ", "d")
+    text = unicodedata.normalize("NFC", text)
+    return _NON_WORD_RE.sub(" ", text.replace("-", " ")).split()
+
+
+def word_diff(expected: str, heard: str, language: str, tones: bool = False) -> list[dict]:
+    """Every missing, extra or wrong word, in reading order. Empty means an exact match.
+
+    Case, punctuation and how a number is written never count; tone marks
+    count only when *tones* is on.
+    """
+    want, got = _words(expected, language, tones), _words(heard, language, tones)
+    ops = []
+    for tag, a1, a2, b1, b2 in SequenceMatcher(a=want, b=got, autojunk=False).get_opcodes():
+        if tag == "equal":
+            continue
+        kind = {"delete": "missing", "insert": "extra", "replace": "wrong"}[tag]
+        ops.append({"op": kind, "expected": " ".join(want[a1:a2]), "heard": " ".join(got[b1:b2]), "at": a1})
+    return ops
 
 
 def score_transcript(expected: str, heard: str, language: str) -> tuple[float, float]:
@@ -79,6 +122,7 @@ class QCResult:
     heard: str = ""
     similarity: float | None = None
     problem: str | None = None
+    diff: list = field(default_factory=list)
 
 
 @dataclass
@@ -89,6 +133,8 @@ class SpeechQC:
     model_size: str
     threshold: float
     max_retries: int
+    exact: bool = True
+    tones: bool = False
     checked: int = 0
     retried: int = 0
     failed: list[dict] = field(default_factory=list)
@@ -123,12 +169,16 @@ class SpeechQC:
                 pass
 
         score, coverage = score_transcript(text, heard, self.language)
-        limit = (
-            _SHORT_TEXT_THRESHOLD
-            if len(_words(text, self.language)) < _SHORT_TEXT_WORDS
-            else self.threshold
-        )
-        problem = None if score >= limit else "words"
+        diff = word_diff(text, heard, self.language, self.tones)
+        if self.exact:
+            problem = "words" if diff else None
+        else:
+            limit = (
+                _SHORT_TEXT_THRESHOLD
+                if len(_words(text, self.language)) < _SHORT_TEXT_WORDS
+                else self.threshold
+            )
+            problem = None if score >= limit else "words"
         similarity = await asyncio.to_thread(self._similarity, audio, sample_rate)
         if similarity is not None and similarity < _MIN_SPEAKER_SIMILARITY:
             problem = problem or "voice"
@@ -136,7 +186,7 @@ class SpeechQC:
         if self._has_artifacts(audio, sample_rate):
             problem = problem or "noise"
             score -= _ARTIFACT_PENALTY
-        return QCResult(problem is None, score, coverage, heard, similarity, problem)
+        return QCResult(problem is None, score, coverage, heard, similarity, problem, diff)
 
     def _similarity(self, audio: np.ndarray, sample_rate: int) -> float | None:
         if self.reference is None:
@@ -161,7 +211,7 @@ class SpeechQC:
         if not best.passed:
             logger.warning("QC could not fix %r (score %.2f): %r", text[:80], best.score, best.heard[:120])
             self.failed.append(
-                {"text": text, "score": round(best.score, 2), "heard": best.heard, "problem": best.problem}
+                {"text": text, "score": round(best.score, 2), "heard": best.heard, "problem": best.problem, "diff": best.diff}
             )
 
     def report(self) -> dict:
@@ -190,4 +240,11 @@ def build_qc(engine: str, language: str) -> SpeechQC | None:
     if not get_stt_backend()._is_model_cached(model_size):
         logger.warning("Speech QC skipped: Whisper %s is not downloaded", model_size)
         return None
-    return SpeechQC(language, model_size, settings["qc_threshold"], settings["qc_max_retries"])
+    return SpeechQC(
+        language,
+        model_size,
+        settings["qc_threshold"],
+        settings["qc_max_retries"],
+        exact=settings["qc_match"] == "exact",
+        tones=bool(settings["qc_tones"]),
+    )

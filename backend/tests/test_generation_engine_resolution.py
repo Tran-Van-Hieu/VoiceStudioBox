@@ -17,9 +17,9 @@ def test_omitted_engine_does_not_override_profile_default():
 
 
 def test_explicit_engine_is_preserved():
-    request = _request(engine="chatterbox")
+    request = _request(engine="qwen_voice_design")
 
-    assert request.engine == "chatterbox"
+    assert request.engine == "qwen_voice_design"
 
 
 def test_invalid_explicit_engine_is_rejected():

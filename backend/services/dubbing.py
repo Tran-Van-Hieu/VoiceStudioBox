@@ -383,12 +383,10 @@ async def _translate_all(project: dict) -> None:
         try:
             reply = await llm.generate(prompt, system=system, max_tokens=1600, temperature=0, model_size=size)
         except RuntimeError as e:
-            # 4B needs nearly all of an 8 GB card; anything else on the GPU can tip it over.
-            if size != "4B" or "out of memory" not in str(e).lower():
+            # 4B needs nearly all of an 8 GB card; free the TTS model and try once more.
+            if "out of memory" not in str(e).lower():
                 raise
-            logger.warning("Qwen3 4B ran out of VRAM; continuing with 1.7B")
-            size = "1.7B"
-            project["llm_size"] = size
+            logger.warning("Qwen3 4B ran out of VRAM; retrying with the TTS model unloaded")
             await asyncio.to_thread(vram.unload_tts, None, True)
             reply = await llm.generate(prompt, system=system, max_tokens=1600, temperature=0, model_size=size)
         return _parse_lines(reply, len(lines))

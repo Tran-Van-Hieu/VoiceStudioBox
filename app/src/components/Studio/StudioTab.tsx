@@ -36,15 +36,18 @@ import {
   Field,
   FinalCheckView,
   formatSeconds,
+  heardOf,
   LanguagePicker,
   ModelPicker,
   PageHeader,
   Panel,
-  parseEngine,
   PlayButton,
+  parseEngine,
   QualityBadge,
   useSaveBlob,
   VoicePicker,
+  WordDiffList,
+  wordDiffOf,
 } from './common';
 
 function modelValue(s: StudioSegment) {
@@ -221,6 +224,11 @@ function SegmentRow(props: {
         )}
         {s.status === 'failed' && <ErrorNote>{s.error}</ErrorNote>}
       </div>
+      {s.status === 'completed' && wordDiffOf(s.final).length > 0 && (
+        <div className="pl-8">
+          <WordDiffList ops={wordDiffOf(s.final)} heard={heardOf(s.final)} />
+        </div>
+      )}
       {open && s.final && s.active && (
         <div className="pl-8">
           <FinalCheckView final={s.final} generationId={s.active} onRepaired={props.onRefresh} />
@@ -382,6 +390,10 @@ export function StudioTab({ embedded = false }: { embedded?: boolean }) {
 
   const total = segments.reduce((n, s) => n + (s.duration ?? 0) + s.pause_after_ms / 1000, 0);
   const missing = segments.filter((s) => !s.active).map((s) => s.id);
+  const failedIds = segments
+    .filter((s) => s.status === 'failed' || s.quality === 'red')
+    .map((s) => s.id);
+  const chosen = segments.filter((s) => selected.has(s.id)).map((s) => s.id);
 
   return (
     <div className="h-full flex flex-col min-h-0">
@@ -700,6 +712,34 @@ export function StudioTab({ embedded = false }: { embedded?: boolean }) {
                   {t('studio.adv.makeMissing', { count: missing.length })}
                 </Button>
               </div>
+              {(chosen.length > 0 || failedIds.length > 0) && (
+                <div className="flex gap-2">
+                  {chosen.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1"
+                      disabled={render.isPending || project.pending}
+                      onClick={() => render.mutate(chosen)}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                      {t('studio.check.regenSelected', { count: chosen.length })}
+                    </Button>
+                  )}
+                  {failedIds.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 border-red-500/50 text-red-500"
+                      disabled={render.isPending || project.pending}
+                      onClick={() => render.mutate(failedIds)}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                      {t('studio.check.regenFailed', { count: failedIds.length })}
+                    </Button>
+                  )}
+                </div>
+              )}
               <div className="flex items-center justify-between gap-2 text-xs">
                 <span className="truncate text-muted-foreground">
                   {project.music ? project.music.name : t('studio.adv.noMusic')}

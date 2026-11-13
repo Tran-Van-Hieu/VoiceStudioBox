@@ -27,8 +27,8 @@ import { useToast } from '@/components/ui/use-toast';
 import { type DubProject, type DubSegment, studioApi } from '@/lib/api/studio';
 import { cn } from '@/lib/utils/cn';
 import {
-  engineSupports,
   ErrorNote,
+  engineSupports,
   Field,
   formatSeconds,
   LanguagePicker,
@@ -170,7 +170,6 @@ function NewDub({ onCreated }: { onCreated: (id: string) => void }) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="4B">{t('studio.dub.translatorName.4B')}</SelectItem>
-                  <SelectItem value="1.7B">{t('studio.dub.translatorName.1.7B')}</SelectItem>
                   <SelectItem value="custom">{t('studio.dub.translatorName.custom')}</SelectItem>
                 </SelectContent>
               </Select>

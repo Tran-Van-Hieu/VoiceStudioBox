@@ -41,7 +41,6 @@ QWEN_MAX_CHUNK_CHARS = 300
 ENGINE_MAX_CHUNK_CHARS = {
     "omnivoice": OMNIVOICE_MAX_CHUNK_CHARS,
     "qwen": QWEN_MAX_CHUNK_CHARS,
-    "qwen_custom_voice": QWEN_MAX_CHUNK_CHARS,
     "qwen_voice_design": QWEN_MAX_CHUNK_CHARS,
 }
 

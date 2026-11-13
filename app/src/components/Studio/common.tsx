@@ -16,8 +16,8 @@ import {
 } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/components/ui/use-toast';
+import { type FinalCheck, type QualityLevel, studioApi, type WordDiffOp } from '@/lib/api/studio';
 import type { VoiceProfileResponse } from '@/lib/api/types';
-import { type FinalCheck, type QualityLevel, studioApi } from '@/lib/api/studio';
 import { ALL_LANGUAGES, ENGINE_LANGUAGES, LANGUAGE_OPTIONS } from '@/lib/constants/languages';
 import { useProfiles } from '@/lib/hooks/useProfiles';
 import { cn } from '@/lib/utils/cn';
@@ -251,6 +251,49 @@ export function QualityBadge({
   );
 }
 
+/** Every word-level difference in a check, in reading order. */
+export function wordDiffOf(final: FinalCheck | null | undefined): WordDiffOp[] {
+  return (final?.issues ?? []).flatMap((i) => (i.kind === 'words' ? (i.diff ?? []) : []));
+}
+
+/** Missing, extra and misread words as small red chips. */
+export function WordDiffList({ ops, heard }: { ops: WordDiffOp[]; heard?: string }) {
+  const { t } = useTranslation();
+  if (!ops.length && !heard) return null;
+  return (
+    <div className="space-y-1 text-xs">
+      {ops.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {ops.map((o, i) => (
+            <span
+              // biome-ignore lint/suspicious/noArrayIndexKey: ops have no id and never reorder
+              key={i}
+              className="rounded border border-red-500/40 bg-red-500/10 px-1.5 py-0.5 text-red-500"
+            >
+              {o.op === 'wrong'
+                ? t('studio.check.wrong', { expected: o.expected, heard: o.heard })
+                : t(`studio.check.${o.op}`, { words: o.op === 'missing' ? o.expected : o.heard })}
+            </span>
+          ))}
+        </div>
+      )}
+      {heard && (
+        <p className="text-muted-foreground">
+          {t('studio.quality.heard')}: {heard}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** The heard text of a check's word issues, joined. */
+export function heardOf(final: FinalCheck | null | undefined): string {
+  return (final?.issues ?? [])
+    .filter((i) => i.kind === 'words' && i.heard)
+    .map((i) => i.heard)
+    .join(' ');
+}
+
 export function FinalCheckView({
   final,
   generationId,
@@ -295,7 +338,9 @@ export function FinalCheckView({
               <div className="flex items-center justify-between gap-2">
                 <span className={issue.severity === 'red' ? 'text-red-500' : 'text-amber-500'}>
                   {issue.start !== undefined && `${formatSeconds(issue.start)} · `}
-                  {t(`studio.quality.issue.${issue.kind}`, { value: issue.value })}
+                  {issue.kind === 'words' && issue.diff
+                    ? t('studio.quality.issue.wordsExact', { count: issue.diff.length })
+                    : t(`studio.quality.issue.${issue.kind}`, { value: issue.value })}
                 </span>
                 {generationId && issue.segments && issue.segments.length > 0 && (
                   <Button
@@ -318,11 +363,7 @@ export function FinalCheckView({
                   </Button>
                 )}
               </div>
-              {issue.heard && (
-                <p className="text-muted-foreground">
-                  {t('studio.quality.heard')}: {issue.heard}
-                </p>
-              )}
+              <WordDiffList ops={issue.diff ?? []} heard={issue.heard} />
             </li>
           ))}
         </ul>
@@ -368,6 +409,7 @@ export function PlayButton({
   label?: string;
 }) {
   const { t } = useTranslation();
+  const { toast } = useToast();
   const audio = useRef<HTMLAudioElement | null>(null);
   const [playing, setPlaying] = useState(false);
   useEffect(() => () => audio.current?.pause(), []);
@@ -379,14 +421,22 @@ export function PlayButton({
     }
     stopCurrent?.();
     const element = new Audio(`${url}${url.includes('?') ? '&' : '?'}t=${Date.now()}`);
+    const failed = () => {
+      setPlaying(false);
+      toast({ title: t('studio.check.playFailed'), variant: 'destructive' });
+    };
     element.onended = () => setPlaying(false);
+    element.onerror = failed;
     audio.current = element;
     stopCurrent = () => {
       element.pause();
       setPlaying(false);
     };
-    element.play();
     setPlaying(true);
+    element.play().catch((e: Error) => {
+      // A newer click paused this one: not a failure.
+      if (e.name !== 'AbortError') failed();
+    });
   };
   const Icon = playing ? Pause : Play;
   return (

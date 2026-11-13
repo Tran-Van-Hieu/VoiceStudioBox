@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useQuery } from '@tanstack/react-query';
-import { Edit2, Mic, Monitor, Music, Sparkles, Upload, X } from 'lucide-react';
+import { Edit2, Mic, Monitor, Sparkles, Upload, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { useTranslation } from 'react-i18next';
@@ -63,14 +63,12 @@ import { SampleList } from './SampleList';
 const MAX_AUDIO_DURATION_SECONDS = 30;
 const MAX_DESIGN_PROMPT_LENGTH = 500;
 /** Engines that can't be a default for a sample-based (cloned) profile. */
-const PRESET_ONLY_ENGINES = new Set(['qwen_custom_voice', 'qwen_voice_design']);
+const PRESET_ONLY_ENGINES = new Set(['qwen_voice_design']);
 /** The engine a designed profile is created against. */
 const DESIGN_ENGINE = 'qwen_voice_design';
 const DEFAULT_ENGINE_OPTIONS = [
   { value: 'qwen', label: 'Qwen3-TTS' },
-  { value: 'qwen_custom_voice', label: 'Qwen CustomVoice' },
   { value: 'qwen_voice_design', label: 'Qwen VoiceDesign' },
-  { value: 'chatterbox', label: 'Chatterbox' },
   { value: 'omnivoice', label: 'OmniVoice (non-commercial)' },
 ] as const;
 
@@ -149,14 +147,12 @@ export function ProfileForm() {
   const deleteAvatar = useDeleteAvatar();
   const transcribe = useTranscription();
   const { toast } = useToast();
-  const [voiceSource, setVoiceSource] = useState<'clone' | 'builtin' | 'design'>('clone');
+  const [voiceSource, setVoiceSource] = useState<'clone' | 'design'>('clone');
   const [designPrompt, setDesignPrompt] = useState<string>('');
   const [sampleMode, setSampleMode] = useState<'upload' | 'record' | 'system'>('record');
   const [audioDuration, setAudioDuration] = useState<number | null>(null);
   const [isValidatingAudio, setIsValidatingAudio] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const [selectedPresetEngine, setSelectedPresetEngine] = useState<string>('qwen_custom_voice');
-  const [selectedPresetVoiceId, setSelectedPresetVoiceId] = useState<string>('');
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const { isPlaying, playPause, cleanup: cleanupAudio } = useAudioPlayer();
   const isCreating = !editingProfileId;
@@ -277,16 +273,13 @@ export function ProfileForm() {
   });
 
   // Fetch available preset voices for the selected engine
-  const presetEngineToQuery = isCreating
-    ? selectedPresetEngine
-    : (editingProfile?.preset_engine ?? '');
+  const presetEngineToQuery = isCreating ? '' : (editingProfile?.preset_engine ?? '');
   const { data: presetVoicesData } = useQuery({
     queryKey: ['presetVoices', presetEngineToQuery],
     queryFn: () => apiClient.listPresetVoices(presetEngineToQuery),
     enabled:
       !!presetEngineToQuery &&
-      ((voiceSource === 'builtin' && isCreating) ||
-        (!isCreating && editingProfile?.voice_type === 'preset')),
+      !isCreating && editingProfile?.voice_type === 'preset',
   });
   const presetVoices = presetVoicesData?.voices ?? [];
   const isSampleBasedProfile = isCreating
@@ -359,7 +352,7 @@ export function ProfileForm() {
       setSampleMode(profileFormDraft.sampleMode);
       // Reopen in the mode the draft was written in, otherwise a designed
       // draft comes back as a clone with its description dropped.
-      setVoiceSource(profileFormDraft.voiceSource ?? 'clone');
+      setVoiceSource(profileFormDraft.voiceSource === 'design' ? 'design' : 'clone');
       setDesignPrompt(profileFormDraft.designPrompt ?? '');
       // Restore the file if we have it saved
       if (
@@ -399,15 +392,6 @@ export function ProfileForm() {
     }
   }, [availableDefaultEngines, defaultEngine]);
 
-  useEffect(() => {
-    if (!selectedPresetVoiceId) {
-      return;
-    }
-
-    if (!presetVoices.some((voice: PresetVoice) => voice.voice_id === selectedPresetVoiceId)) {
-      setSelectedPresetVoiceId('');
-    }
-  }, [presetVoices, selectedPresetVoiceId]);
   async function handleTranscribe() {
     const file = form.getValues('sampleFile');
     if (!file) {
@@ -552,51 +536,6 @@ export function ProfileForm() {
         toast({
           title: t('profileForm.toast.voiceUpdated'),
           description: t('profileForm.toast.voiceUpdatedDescription', { name: data.name }),
-        });
-      } else if (voiceSource === 'builtin') {
-        // Creating preset profile from built-in voice
-        if (!selectedPresetVoiceId) {
-          toast({
-            title: t('profileForm.toast.noVoiceSelected'),
-            description: t('profileForm.toast.noVoiceSelectedDescription'),
-            variant: 'destructive',
-          });
-          return;
-        }
-
-        const profile = await createProfile.mutateAsync({
-          name: data.name,
-          description: data.description,
-          language: data.language,
-          voice_type: 'preset' as VoiceType,
-          preset_engine: selectedPresetEngine,
-          preset_voice_id: selectedPresetVoiceId,
-          default_engine: selectedPresetEngine,
-          personality: data.personality?.trim() ? data.personality.trim() : undefined,
-        });
-
-        // Handle avatar upload if provided
-        if (data.avatarFile) {
-          try {
-            await uploadAvatar.mutateAsync({
-              profileId: profile.id,
-              file: data.avatarFile,
-            });
-          } catch (avatarError) {
-            toast({
-              title: t('profileForm.toast.avatarUploadFailed'),
-              description:
-                avatarError instanceof Error
-                  ? avatarError.message
-                  : t('profileForm.toast.avatarUploadFailedFallback'),
-              variant: 'destructive',
-            });
-          }
-        }
-
-        toast({
-          title: t('profileForm.toast.profileCreated'),
-          description: t('profileForm.toast.profileCreatedBuiltin', { name: data.name }),
         });
       } else if (voiceSource === 'design') {
         // Creating a designed profile from a written voice description
@@ -927,18 +866,6 @@ export function ProfileForm() {
                           </button>
                           <button
                             type="button"
-                            onClick={() => setVoiceSource('builtin')}
-                            className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-colors ${
-                              voiceSource === 'builtin'
-                                ? 'bg-accent text-accent-foreground shadow-sm'
-                                : 'text-muted-foreground hover:text-foreground'
-                            }`}
-                          >
-                            <Music className="h-3.5 w-3.5" />
-                            {t('profileForm.source.builtin')}
-                          </button>
-                          <button
-                            type="button"
                             onClick={() => setVoiceSource('design')}
                             className={`inline-flex items-center gap-2 px-3 py-1.5 text-sm rounded-md transition-colors ${
                               voiceSource === 'design'
@@ -975,62 +902,6 @@ export function ProfileForm() {
                               <p className="text-xs text-muted-foreground tabular-nums">
                                 {designPrompt.length}/{MAX_DESIGN_PROMPT_LENGTH}
                               </p>
-                            </div>
-                          </FormItem>
-                        </div>
-                      ) : voiceSource === 'builtin' ? (
-                        <div className="space-y-4">
-                          <FormDescription>{t('profileForm.builtin.hint')}</FormDescription>
-
-                          <FormItem>
-                            <FormLabel>{t('profileForm.fields.engine')}</FormLabel>
-                            <Select
-                              value={selectedPresetEngine}
-                              onValueChange={setSelectedPresetEngine}
-                            >
-                              <FormControl>
-                                <SelectTrigger>
-                                  <SelectValue />
-                                </SelectTrigger>
-                              </FormControl>
-                              <SelectContent>
-                                <SelectItem value="qwen_custom_voice">Qwen CustomVoice</SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </FormItem>
-
-                          {/* Voice picker */}
-                          <FormItem>
-                            <FormLabel>{t('profileForm.fields.voice')}</FormLabel>
-                            <div className="grid grid-cols-2 gap-1.5 max-h-[340px] overflow-y-auto pr-1">
-                              {presetVoices.map((voice: PresetVoice) => (
-                                <button
-                                  key={voice.voice_id}
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedPresetVoiceId(voice.voice_id);
-                                    // Auto-set language from voice
-                                    if (voice.language) {
-                                      form.setValue('language', voice.language as LanguageCode);
-                                    }
-                                  }}
-                                  className={`text-left px-3 py-2 rounded-md border text-sm transition-colors ${
-                                    selectedPresetVoiceId === voice.voice_id
-                                      ? 'border-accent bg-accent/10 text-accent-foreground'
-                                      : 'border-border hover:bg-muted'
-                                  }`}
-                                >
-                                  <div className="font-medium">{voice.name}</div>
-                                  <div className="flex gap-1.5 mt-0.5">
-                                    <Badge variant="outline" className="text-[10px] h-4 px-1">
-                                      {voice.gender}
-                                    </Badge>
-                                    <Badge variant="outline" className="text-[10px] h-4 px-1">
-                                      {voice.language}
-                                    </Badge>
-                                  </div>
-                                </button>
-                              ))}
                             </div>
                           </FormItem>
                         </div>
@@ -1358,7 +1229,6 @@ export function ProfileForm() {
                         setDefaultEngine(v === '_none' ? '' : v);
                       }}
                       disabled={
-                        voiceSource === 'builtin' ||
                         voiceSource === 'design' ||
                         editingProfile?.voice_type === 'preset' ||
                         editingProfile?.voice_type === 'designed'

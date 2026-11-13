@@ -21,7 +21,7 @@ const generationSchema = z.object({
   modelSize: z.enum(['1.7B', '0.6B']).optional(),
   instruct: z.string().max(500).optional(),
   engine: z
-    .enum(['qwen', 'qwen_custom_voice', 'qwen_voice_design', 'chatterbox', 'omnivoice'])
+    .enum(['qwen', 'qwen_voice_design', 'omnivoice'])
     .optional(),
   personality: z.boolean().optional(),
   emotion: z.enum(EMOTION_IDS).optional(),
@@ -86,25 +86,17 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
     try {
       const engine = data.engine || 'qwen';
       const modelName =
-        engine === 'chatterbox'
-          ? 'chatterbox-tts'
-          : engine === 'qwen_voice_design'
-            ? 'qwen-voice-design-1.7B'
-            : engine === 'omnivoice'
-              ? 'omnivoice'
-              : engine === 'qwen_custom_voice'
-                ? `qwen-custom-voice-${data.modelSize}`
-                : `qwen-tts-${data.modelSize}`;
+        engine === 'qwen_voice_design'
+          ? 'qwen-voice-design-1.7B'
+          : engine === 'omnivoice'
+            ? 'omnivoice'
+            : 'qwen-tts-1.7B';
       const displayName =
-        engine === 'chatterbox'
-          ? 'Chatterbox TTS'
-          : engine === 'qwen_voice_design'
-            ? 'Qwen VoiceDesign 1.7B'
-            : engine === 'omnivoice'
-              ? 'OmniVoice'
-              : engine === 'qwen_custom_voice'
-                ? `Qwen CustomVoice ${data.modelSize}`
-                : `Qwen TTS ${data.modelSize}`;
+        engine === 'qwen_voice_design'
+          ? 'Qwen VoiceDesign 1.7B'
+          : engine === 'omnivoice'
+            ? 'OmniVoice'
+            : 'Qwen TTS 1.7B';
 
       // Check if model needs downloading
       try {
@@ -119,7 +111,7 @@ export function useGenerationForm(options: UseGenerationFormOptions = {}) {
         console.error('Failed to check model status:', error);
       }
 
-      const hasModelSizes = engine === 'qwen' || engine === 'qwen_custom_voice';
+      const hasModelSizes = engine === 'qwen';
       const supportsInstruct = engineSupportsInstruct(engine);
       const effectsChain = options.getEffectsChain?.();
       // This now returns immediately with status="generating"

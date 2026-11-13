@@ -39,6 +39,11 @@ def _get_or_create_capture_row(db: Session) -> DBCaptureSettings:
         db.add(row)
         db.commit()
         db.refresh(row)
+    if row.stt_model != "turbo" or row.llm_model != "4B":
+        # Only Whisper Turbo and Qwen3 4B ship now; older rows may name a removed size.
+        row.stt_model, row.llm_model = "turbo", "4B"
+        db.commit()
+        db.refresh(row)
     return row
 
 

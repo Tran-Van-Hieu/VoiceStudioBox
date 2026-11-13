@@ -8,6 +8,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Slider } from '@/components/ui/slider';
+import { Toggle } from '@/components/ui/toggle';
 import type { ExportFormat } from '@/lib/api/extras';
 import { useExtrasSettings } from '@/lib/hooks/useExtras';
 import { SettingRow, SettingSection } from './SettingRow';
@@ -212,13 +213,14 @@ export function OutputSettingsSection() {
           description={t('extras.qc.retries.description')}
           action={
             <Select
-              value={String(settings?.qc_max_retries ?? 3)}
+              value={String(settings?.qc_max_retries ?? 0)}
               onValueChange={(v) => update({ qc_max_retries: Number(v) })}
             >
               <SelectTrigger className="w-[140px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="0">{t('extras.qc.retries.none')}</SelectItem>
                 {[1, 2, 3, 4, 5].map((n) => (
                   <SelectItem key={n} value={String(n)}>
                     {n}
@@ -226,6 +228,52 @@ export function OutputSettingsSection() {
                 ))}
               </SelectContent>
             </Select>
+          }
+        />
+        <SettingRow
+          title={t('extras.qc.match.title')}
+          description={t('extras.qc.match.description')}
+          action={
+            <Select
+              value={settings?.qc_match ?? 'exact'}
+              onValueChange={(v) => update({ qc_match: v as 'exact' | 'tolerant' })}
+            >
+              <SelectTrigger className="w-[220px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="exact">{t('extras.qc.match.exact')}</SelectItem>
+                <SelectItem value="tolerant">{t('extras.qc.match.tolerant')}</SelectItem>
+              </SelectContent>
+            </Select>
+          }
+        />
+        {settings?.qc_match === 'tolerant' && (
+          <SettingRow
+            title={t('extras.qc.threshold.title', {
+              value: Math.round((settings?.qc_threshold ?? 0.75) * 100),
+            })}
+            description={t('extras.qc.threshold.description')}
+            action={
+              <Slider
+                className="w-[220px]"
+                min={0.4}
+                max={0.95}
+                step={0.05}
+                value={[settings?.qc_threshold ?? 0.75]}
+                onValueChange={([v]) => update({ qc_threshold: v })}
+              />
+            }
+          />
+        )}
+        <SettingRow
+          title={t('extras.qc.tones.title')}
+          description={t('extras.qc.tones.description')}
+          action={
+            <Toggle
+              checked={settings?.qc_tones ?? false}
+              onCheckedChange={(v) => update({ qc_tones: v })}
+            />
           }
         />
       </SettingSection>

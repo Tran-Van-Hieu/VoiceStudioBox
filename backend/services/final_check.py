@@ -113,19 +113,22 @@ async def run(
         finally:
             os.unlink(path)
         score, _ = speech_qc.score_transcript(expected, heard, language)
-        if score < _YELLOW_SCORE and len(group) > 1:
+        diff = speech_qc.word_diff(expected, heard, language, qc.tones)
+        if (diff if qc.exact else score < _YELLOW_SCORE) and len(group) > 1:
             # Whisper sometimes invents a stock sentence for a whole stretch of
             # fine speech ("Hãy subscribe cho kênh..."); shorter pieces expose that.
             second = await _listen_piecewise(x, sample_rate, segments, group, language, qc.model_size)
             better, _ = speech_qc.score_transcript(expected, second, language)
-            if better > score:
-                score, heard = better, second
+            second_diff = speech_qc.word_diff(expected, second, language, qc.tones)
+            if (len(second_diff) < len(diff)) if qc.exact else better > score:
+                score, heard, diff = better, second, second_diff
         scores.append(score)
-        if score < _YELLOW_SCORE:
+        if diff if qc.exact else score < _YELLOW_SCORE:
             issues.append(
                 {
                     "kind": "words",
-                    "severity": "red" if score < _RED_SCORE else "yellow",
+                    "severity": "red" if qc.exact or score < _RED_SCORE else "yellow",
+                    "diff": diff,
                     "start": start,
                     "end": end,
                     "value": round(score, 2),
@@ -172,4 +175,5 @@ async def run(
         "metrics": {k: (round(v, 3) if isinstance(v, float) else v) for k, v in metrics.items()},
         "issues": issues,
         "threshold": extras.get("qc_threshold"),
+        "match": "exact" if qc.exact else "tolerant",
     }

@@ -40,9 +40,15 @@ DEFAULTS: dict[str, Any] = {
     # VRAM management.
     "vram_idle_unload_minutes": 0,  # 0 = never
     "vram_exclusive_engine": True,  # unload other TTS engines before loading one
-    # Speech QC: Whisper listens to each chunk and bad ones are regenerated.
+    # Speech QC: Whisper listens to every finished part and flags wrong words.
     "qc_mode": "all",  # off | all (omnivoice is read as all)
-    "qc_max_retries": 3,
+    # 0 = never regenerate on its own; the user listens and regenerates by hand.
+    "qc_max_retries": 0,
+    # exact: one missing, extra or wrong word flags the part red.
+    # tolerant: scored against qc_threshold, so a Whisper slip is forgiven.
+    "qc_match": "exact",
+    # Also compare Vietnamese tone marks. Off by default: Whisper's marks are unreliable.
+    "qc_tones": False,
     "qc_threshold": 0.75,
     "qc_whisper_model": "turbo",
     # OmniVoice decoding steps: 32 is the model's own default, 16 is twice as fast.
@@ -153,13 +159,16 @@ def _sanitize(key: str, value: Any) -> Any:
         return max(0, min(3600, int(value)))
     if key == "qc_max_retries":
         return max(0, min(5, int(value)))
+    if key == "qc_match":
+        if value not in ("exact", "tolerant"):
+            raise ValueError("qc_match must be 'exact' or 'tolerant'")
+        return value
+    if key == "qc_tones":
+        return bool(value)
     if key == "qc_threshold":
         return round(max(0.4, min(0.95, float(value))), 2)
     if key == "qc_whisper_model":
-        v = str(value)
-        if v not in ("base", "small", "medium", "large", "turbo"):
-            raise ValueError(f"Unsupported Whisper model: {value}")
-        return v
+        return "turbo"  # the only Whisper the app ships
     if key == "sample_emotions":
         return {str(k): str(v) for k, v in dict(value).items() if v and v != "neutral"}
     if key in ("pronunciation_enabled", "vram_exclusive_engine"):

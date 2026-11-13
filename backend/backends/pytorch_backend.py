@@ -54,15 +54,7 @@ class PyTorchTTSBackend:
         Returns:
             HuggingFace Hub model ID
         """
-        hf_model_map = {
-            "1.7B": "Qwen/Qwen3-TTS-12Hz-1.7B-Base",
-            "0.6B": "Qwen/Qwen3-TTS-12Hz-0.6B-Base",
-        }
-
-        if model_size not in hf_model_map:
-            raise ValueError(f"Unknown model size: {model_size}")
-
-        return hf_model_map[model_size]
+        return "Qwen/Qwen3-TTS-12Hz-1.7B-Base"  # the only Qwen TTS size the app ships
 
     def _is_model_cached(self, model_size: str) -> bool:
         return is_model_cached(self._get_model_path(model_size))
@@ -72,10 +64,9 @@ class PyTorchTTSBackend:
         Lazy load the TTS model with automatic downloading from HuggingFace Hub.
 
         Args:
-            model_size: Model size to load (1.7B or 0.6B)
+            model_size: ignored, 1.7B is the only size the app ships (old projects may still say 0.6B)
         """
-        if model_size is None:
-            model_size = self.model_size
+        model_size = "1.7B"
 
         # If already loaded with correct size, return
         if self.model is not None and self._current_model_size == model_size:
@@ -253,7 +244,7 @@ class PyTorchTTSBackend:
 class PyTorchSTTBackend:
     """PyTorch-based STT backend using Whisper."""
 
-    def __init__(self, model_size: str = "base"):
+    def __init__(self, model_size: str = "turbo"):
         self.model = None
         self.processor = None
         self.model_size = model_size
@@ -268,18 +259,16 @@ class PyTorchSTTBackend:
         return self.model is not None
 
     def _is_model_cached(self, model_size: str) -> bool:
-        hf_repo = WHISPER_HF_REPOS.get(model_size, f"openai/whisper-{model_size}")
-        return is_model_cached(hf_repo)
+        return is_model_cached(WHISPER_HF_REPOS["turbo"])
 
     async def load_model_async(self, model_size: Optional[str] = None):
         """
         Lazy load the Whisper model.
 
         Args:
-            model_size: Model size (tiny, base, small, medium, large)
+            model_size: ignored, Turbo is the only Whisper the app ships (old settings may name another)
         """
-        if model_size is None:
-            model_size = self.model_size
+        model_size = "turbo"
 
         if self.model is not None and self.model_size == model_size:
             return

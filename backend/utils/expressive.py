@@ -79,7 +79,7 @@ DEFAULT_INTENSITY = 0.6
 
 # Engines whose model takes the emotion directly, so post-processing would
 # only double it up.
-INSTRUCT_PROSE_ENGINES = {"qwen_custom_voice", "qwen_voice_design"}
+INSTRUCT_PROSE_ENGINES = {"qwen_voice_design"}
 
 
 # Engines that set the speaking rate while generating. Time-stretching their
@@ -130,26 +130,12 @@ def compose_instruct(
     return user or None
 
 
-def chatterbox_params(defaults: dict, emotion: str, intensity: float) -> dict:
-    """Blend Chatterbox's language defaults toward the emotion's settings."""
-    params = dict(defaults)
-    if normalize_emotion(emotion) == NEUTRAL:
-        return params
-    spec = EMOTIONS[emotion]
-    k = max(0.0, min(1.0, intensity))
-    params["exaggeration"] = defaults["exaggeration"] + (spec.exaggeration - defaults["exaggeration"]) * k
-    params["cfg_weight"] = defaults["cfg_weight"] + (spec.cfg_weight - defaults["cfg_weight"]) * k
-    return params
-
-
 def prosody_factor(engine: str, has_emotion_sample: bool) -> float:
     """How much post-synthesis prosody to add on top of the engine's own control."""
     if engine in INSTRUCT_PROSE_ENGINES:
         return 0.0
     if has_emotion_sample:
         return 0.25
-    if engine == "chatterbox":
-        return 0.5
     return 1.0
 
 

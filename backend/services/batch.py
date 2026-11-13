@@ -239,9 +239,17 @@ def build_zip(items: list[dict], fmt: str, bitrate: int, srt: bool) -> bytes:
 
 
 def build_merged(items: list[dict], gap_ms: int) -> tuple[np.ndarray, int, list[dict]]:
-    """Concatenate completed items (in order) with silence; return audio, sr, segments."""
+    """Concatenate every item in number order with silence; return audio, sr, segments.
+
+    Refuses while any item is unfinished: skipping one would shift every later
+    line and the merged file would no longer follow the script.
+    """
     from ..utils.audio_post import load_segments
 
+    items = sorted(items, key=lambda it: it["index"])
+    unfinished = [it["index"] + 1 for it in items if it["status"] != "completed" or not it.get("audio_path")]
+    if unfinished:
+        raise ValueError(f"Chưa xong các đoạn: {_numbers(unfinished)}. Tạo lại hoặc xoá chúng trước khi gộp.")
     pieces: list[np.ndarray] = []
     segments: list[dict] = []
     sr: int | None = None
@@ -273,7 +281,14 @@ def build_merged(items: list[dict], gap_ms: int) -> tuple[np.ndarray, int, list[
     return np.concatenate(pieces), sr, segments
 
 
+def _numbers(numbers: list[int], limit: int = 20) -> str:
+    shown = ", ".join(str(n) for n in numbers[:limit])
+    return shown + (f" … (+{len(numbers) - limit})" if len(numbers) > limit else "")
+
+
 def manifest_summary(batch: dict, items: list[dict]) -> dict[str, Any]:
+    from ..utils.audio_post import load_final
+
     counts: dict[str, int] = {}
     for it in items:
         counts[it["status"]] = counts.get(it["status"], 0) + 1
@@ -293,6 +308,8 @@ def manifest_summary(batch: dict, items: list[dict]) -> dict[str, Any]:
                 "status": it["status"],
                 "duration": it.get("duration"),
                 "error": it.get("error"),
+                "takes": it.get("takes", []),
+                "final": load_final(it["generation_id"]) if it["status"] == "completed" else None,
             }
             for it in items
         ],

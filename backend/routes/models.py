@@ -473,6 +473,9 @@ async def trigger_model_download(request: models.ModelDownloadRequest):
             if asyncio.iscoroutine(result):
                 await result
             task_manager.complete_download(request.model_name)
+            # Already on disk: the loader never reports progress, so the
+            # "Connecting to HuggingFace..." set below would hang forever.
+            progress_manager.mark_complete(request.model_name)
         except Exception as e:
             task_manager.error_download(request.model_name, str(e))
 

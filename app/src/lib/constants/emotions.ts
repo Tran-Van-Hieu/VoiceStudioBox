@@ -21,11 +21,8 @@ export type EmotionSupport = 'direct' | 'intensity' | 'reference' | 'prosody';
 
 export function emotionSupport(engine: string | undefined): EmotionSupport {
   switch (engine) {
-    case 'qwen_custom_voice':
     case 'qwen_voice_design':
       return 'direct';
-    case 'chatterbox':
-      return 'intensity';
     default:
       return 'reference';
   }

@@ -27,7 +27,7 @@ def test_native_speed_engine_is_never_time_stretched(monkeypatch):
     assert calls == []
 
     audio_post.apply_output_processing(audio, 24000, None, "qwen")
-    audio_post.apply_output_processing(audio, 24000, 1.2, "chatterbox")
+    audio_post.apply_output_processing(audio, 24000, 1.2, "qwen")
     assert calls == [0.9, 1.2]  # the user's default, then the request's own
 
 

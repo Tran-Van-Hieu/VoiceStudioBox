@@ -115,8 +115,8 @@ async def test_models_list_includes_aliases_engines_and_variants(client):
     models = await client.models.list()
     ids = {m.id for m in models.data}
     assert {"tts-1", "tts-1-hd", "gpt-4o-mini-tts"} <= ids
-    assert {"qwen", "chatterbox", "omnivoice"} <= ids
-    assert "qwen-tts-0.6B" in ids
+    assert {"qwen", "omnivoice"} <= ids
+    assert "qwen-tts-1.7B" in ids
     assert all(m.object == "model" and m.owned_by == "voicebox" for m in models.data)
 
 
@@ -141,19 +141,19 @@ async def test_speech_wav_default_with_openai_alias_uses_profile_engine(client, 
     calls = app.state.calls
     assert calls["voice"] == "Morgan"
     assert calls["text"] == "Hello there"
-    # A cloned profile without a configured engine falls back to qwen at its default size.
-    assert calls["load"] == ("qwen", "1.7B")
+    # A cloned profile without a configured engine falls back to qwen (one size only).
+    assert calls["load"] == ("qwen", "default")
     assert calls["voice_prompt_engine"] == "qwen"
 
 
 async def test_speech_model_is_a_voicebox_engine(client, app):
-    await client.audio.speech.create(model="chatterbox", voice="Morgan", input="Hi")
-    assert app.state.calls["load"] == ("chatterbox", "default")
+    await client.audio.speech.create(model="omnivoice", voice="Morgan", input="Hi")
+    assert app.state.calls["load"] == ("omnivoice", "default")
 
 
 async def test_speech_model_variant_selects_size(client, app):
-    await client.audio.speech.create(model="qwen-tts-0.6B", voice="Morgan", input="Hi")
-    assert app.state.calls["load"] == ("qwen", "0.6B")
+    await client.audio.speech.create(model="qwen-tts-1.7B", voice="Morgan", input="Hi")
+    assert app.state.calls["load"] == ("qwen", "default")
 
 
 @pytest.mark.parametrize(

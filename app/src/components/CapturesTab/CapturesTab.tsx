@@ -161,7 +161,7 @@ export function CapturesTab() {
 
   const { settings: captureSettings, update: updateCaptureSettings } = useCaptureSettings();
   const sttModel = captureSettings?.stt_model ?? 'turbo';
-  const llmModel = captureSettings?.llm_model ?? '0.6B';
+  const llmModel = '4B';
   const hotkeyEnabled = captureSettings?.hotkey_enabled ?? false;
   const pushToTalkKeys = captureSettings?.chord_push_to_talk_keys ?? [];
   const toggleToTalkKeys = captureSettings?.chord_toggle_to_talk_keys ?? [];
@@ -272,16 +272,14 @@ export function CapturesTab() {
       const text = capture.transcript_refined || capture.transcript_raw;
       if (!text.trim()) throw new Error(t('captures.noTranscriptError'));
       const language = (capture.language || voice.language) as LanguageCode;
-      // Preset profiles (CustomVoice etc.) reject the qwen default — honor the
-      // profile's stored engine preference. Cloned profiles without an
-      // override fall through to whatever the backend picks.
-      const engine = voice.default_engine as
-        | 'qwen'
-        | 'qwen_custom_voice'
-        | 'qwen_voice_design'
-        | 'chatterbox'
-        | 'omnivoice'
-        | undefined;
+      // Designed profiles reject the qwen default — honor the profile's stored
+      // engine; one saved with a removed engine falls back to OmniVoice.
+      const stored = voice.default_engine;
+      const engine = !stored
+        ? undefined
+        : stored === 'qwen' || stored === 'qwen_voice_design' || stored === 'omnivoice'
+          ? stored
+          : 'omnivoice';
       return apiClient.generateSpeech({
         profile_id: voice.id,
         text,

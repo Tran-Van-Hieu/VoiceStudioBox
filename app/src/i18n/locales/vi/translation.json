@@ -1434,8 +1434,23 @@
         "off": "Tắt"
       },
       "retries": {
-        "title": "Số lần tạo lại mỗi đoạn",
-        "description": "Nếu không lần nào đạt, app giữ lại lần tốt nhất."
+        "title": "Tự tạo lại khi sai chữ",
+        "description": "Số lần app tự tạo lại một đoạn chưa đạt trước khi đưa cho bạn. Chọn \"Không\" để giữ nguyên bản đầu, bạn nghe rồi tự bấm Tạo lại.",
+        "none": "Không, tôi tự tạo lại"
+      },
+      "match": {
+        "title": "Kiểu so chữ",
+        "description": "Whisper nghe lại từng đoạn rồi so với văn bản. Bỏ qua dấu câu, chữ hoa/thường và cách viết số (4 = bốn).",
+        "exact": "Khớp từng chữ",
+        "tolerant": "Cho sai ít (theo ngưỡng)"
+      },
+      "threshold": {
+        "title": "Ngưỡng đạt: {{value}}% chữ đúng",
+        "description": "Chỉ dùng khi kiểu so chữ là \"Cho sai ít\"."
+      },
+      "tones": {
+        "title": "So cả dấu thanh (tiếng Việt)",
+        "description": "Bật để \"má\" khác \"mà\". Whisper đôi khi nghe nhầm dấu, nên có thể báo lỗi cả khi đọc đúng."
       }
     },
     "quality": {
@@ -1579,7 +1594,8 @@
         "clipping": "Âm bị vỡ {{value}}%",
         "clicks": "Có tiếng click (khoảng {{value}} lần/phút)",
         "noise": "Nền ồn ({{value}} dB)",
-        "chunks": "{{value}} đoạn không sửa được khi tạo"
+        "chunks": "{{value}} đoạn không sửa được khi tạo",
+        "wordsExact": "Sai {{count}} chỗ so với văn bản"
       },
       "keptPrevious": "Bản mới không tốt hơn nên app giữ bản cũ."
     },
@@ -1883,6 +1899,19 @@
       "hint": "Mỗi đoạn luôn kết thúc trọn câu. Câu dài hơn số ký tự được giữ nguyên trong một đoạn.",
       "progress": "Xong {{done}}/{{total}}",
       "needVoice": "Hãy chọn giọng trước."
+    },
+    "check": {
+      "missing": "Thiếu: {{words}}",
+      "extra": "Thừa: {{words}}",
+      "wrong": "Đọc sai: {{expected}} → {{heard}}",
+      "playFailed": "Không phát được audio này",
+      "regen": "Tạo lại",
+      "regenSelected": "Tạo lại đã chọn ({{count}})",
+      "regenFailed": "Tạo lại đoạn lỗi ({{count}})",
+      "regenAll": "Tạo lại tất cả",
+      "selectAll": "Chọn tất cả",
+      "take": "Bản {{n}}",
+      "unfinished": "Còn {{count}} đoạn chưa xong, chưa gộp được."
     }
   }
 }

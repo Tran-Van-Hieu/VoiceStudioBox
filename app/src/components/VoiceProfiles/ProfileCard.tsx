@@ -20,7 +20,6 @@ import { useUIStore } from '@/stores/uiStore';
 
 /** Human-readable display names for preset engine badges. */
 const ENGINE_DISPLAY_NAMES: Record<string, string> = {
-  qwen_custom_voice: 'CustomVoice',
   qwen_voice_design: 'VoiceDesign',
 };
 

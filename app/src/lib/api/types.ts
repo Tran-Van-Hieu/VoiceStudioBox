@@ -71,7 +71,7 @@ export interface GenerationRequest {
   language: LanguageCode;
   seed?: number;
   model_size?: '1.7B' | '0.6B';
-  engine?: 'qwen' | 'qwen_custom_voice' | 'qwen_voice_design' | 'chatterbox' | 'omnivoice';
+  engine?: 'qwen' | 'qwen_voice_design' | 'omnivoice';
   instruct?: string;
   /** When true and the profile has a personality prompt, input text is rewritten in-character before TTS. */
   personality?: boolean;
@@ -131,9 +131,9 @@ export interface HistoryListResponse {
   total: number;
 }
 
-export type WhisperModelSize = 'base' | 'small' | 'medium' | 'large' | 'turbo';
+export type WhisperModelSize = 'turbo';
 
-export type Qwen3ModelSize = '0.6B' | '1.7B' | '4B';
+export type Qwen3ModelSize = '4B';
 
 export type CaptureSource = 'dictation' | 'recording' | 'file';
 

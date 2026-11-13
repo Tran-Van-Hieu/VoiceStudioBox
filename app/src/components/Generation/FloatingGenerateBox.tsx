@@ -145,12 +145,7 @@ export function FloatingGenerateBox({
   }, [watchedEngine, setSelectedEngine]);
 
   // Sync generation form language, engine, and effects with selected profile
-  type EngineValue =
-    | 'qwen'
-    | 'chatterbox'
-    | 'qwen_custom_voice'
-    | 'qwen_voice_design'
-    | 'omnivoice';
+  type EngineValue = 'qwen' | 'qwen_voice_design' | 'omnivoice';
   useEffect(() => {
     if (selectedProfile?.language) {
       form.setValue('language', selectedProfile.language as LanguageCode);
@@ -158,7 +153,9 @@ export function FloatingGenerateBox({
     // Auto-switch engine to match the profile
     const engine = selectedProfile?.default_engine ?? selectedProfile?.preset_engine;
     if (engine) {
-      form.setValue('engine', engine as EngineValue);
+      // Voices saved with a removed engine (Chatterbox, CustomVoice) fall back to OmniVoice.
+      const known = ['qwen', 'qwen_voice_design', 'omnivoice'].includes(engine);
+      form.setValue('engine', (known ? engine : 'omnivoice') as EngineValue);
     } else if (
       selectedProfile &&
       selectedProfile.voice_type !== 'preset' &&
@@ -168,7 +165,7 @@ export function FloatingGenerateBox({
       // Designed profiles are excluded: they always carry a design engine and
       // would be broken by a fallback to qwen.
       const currentEngine = form.getValues('engine');
-      const presetEngines = new Set(['qwen_custom_voice', 'qwen_voice_design']);
+      const presetEngines = new Set(['qwen_voice_design']);
       if (currentEngine && presetEngines.has(currentEngine)) {
         form.setValue('engine', 'qwen');
       }

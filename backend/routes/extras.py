@@ -237,12 +237,34 @@ class BatchCreate(BaseModel):
     items: List[BatchItemIn] = Field(..., min_length=1, max_length=batch_service.MAX_ITEMS)
 
 
-@router.post("/batch")
-async def create_batch(data: BatchCreate, db: Session = Depends(get_db)) -> dict[str, Any]:
-    from .generations import generate_speech
+def _batch_request(settings: dict, text: str, db: Session) -> models.GenerationRequest:
+    """One item's request, from the settings snapshot the batch was started with."""
     from ..services import settings as settings_service
 
     gen_settings = settings_service.get_generation_settings(db)
+    return models.GenerationRequest(
+        profile_id=settings["profile_id"],
+        text=text,
+        language=settings["language"],
+        engine=settings.get("engine"),
+        model_size=settings.get("model_size") or "1.7B",
+        instruct=settings.get("instruct"),
+        seed=settings.get("seed"),
+        speed=settings.get("speed"),
+        emotion=settings.get("emotion"),
+        emotion_intensity=settings.get("emotion_intensity", 0.6),
+        denoise=settings.get("denoise"),
+        sentence_pause_ms=settings.get("sentence_pause_ms", 0),
+        max_chunk_chars=gen_settings.max_chunk_chars,
+        crossfade_ms=gen_settings.crossfade_ms,
+        normalize=gen_settings.normalize_audio,
+    )
+
+
+@router.post("/batch")
+async def create_batch(data: BatchCreate, db: Session = Depends(get_db)) -> dict[str, Any]:
+    from .generations import generate_speech
+
     settings_snapshot = data.model_dump(exclude={"items"})
     manifest_items: list[dict] = []
     group = f"batch-{uuid.uuid4().hex}"
@@ -250,24 +272,7 @@ async def create_batch(data: BatchCreate, db: Session = Depends(get_db)) -> dict
     for i, item in enumerate(data.items):
         entry: dict[str, Any] = {"index": i, "text": item.text, "filename": item.filename}
         try:
-            req = models.GenerationRequest(
-                profile_id=data.profile_id,
-                text=item.text,
-                language=data.language,
-                engine=data.engine,
-                model_size=data.model_size or "1.7B",
-                instruct=data.instruct,
-                seed=data.seed,
-                speed=data.speed,
-                emotion=data.emotion,
-                emotion_intensity=data.emotion_intensity,
-                denoise=data.denoise,
-                sentence_pause_ms=data.sentence_pause_ms,
-                max_chunk_chars=gen_settings.max_chunk_chars,
-                crossfade_ms=gen_settings.crossfade_ms,
-                normalize=gen_settings.normalize_audio,
-            )
-            gen = await generate_speech(req, db, group)
+            gen = await generate_speech(_batch_request(settings_snapshot, item.text, db), db, group)
             entry["generation_id"] = gen.id
         except HTTPException as e:
             if i == 0:
@@ -307,6 +312,41 @@ def _batch_or_404(batch_id: str) -> dict:
 @router.get("/batch/{batch_id}")
 async def get_batch(batch_id: str, db: Session = Depends(get_db)) -> dict[str, Any]:
     b = _batch_or_404(batch_id)
+    return batch_service.manifest_summary(b, batch_service.collect(b, db))
+
+
+class BatchRegenerate(BaseModel):
+    indices: List[int] = Field(..., min_length=1)
+    # Edited text per index; anything not listed keeps its text.
+    texts: dict[int, str] = Field(default_factory=dict)
+
+
+@router.post("/batch/{batch_id}/regenerate")
+async def regenerate_batch_items(batch_id: str, data: BatchRegenerate, db: Session = Depends(get_db)) -> dict[str, Any]:
+    """New take for the chosen items with the batch's own settings; earlier takes are kept."""
+    from .generations import generate_speech
+
+    b = _batch_or_404(batch_id)
+    by_index = {it["index"]: it for it in b["items"]}
+    unknown = [i for i in data.indices if i not in by_index]
+    if unknown:
+        raise HTTPException(status_code=404, detail=f"No item {unknown[0] + 1} in this batch")
+    group = f"batch-{uuid.uuid4().hex}"
+    for i in data.indices:
+        item = by_index[i]
+        text = (data.texts.get(i) or item["text"]).strip()
+        try:
+            gen = await generate_speech(_batch_request(b["settings"], text, db), db, group)
+        except HTTPException as e:
+            item["error"] = str(e.detail)
+            continue
+        if item.get("generation_id"):
+            item.setdefault("takes", [item["generation_id"]])
+        item["text"] = text
+        item["generation_id"] = gen.id
+        item["takes"] = [*item.get("takes", []), gen.id]
+        item.pop("error", None)
+    batch_service.save(b)
     return batch_service.manifest_summary(b, batch_service.collect(b, db))
 
 

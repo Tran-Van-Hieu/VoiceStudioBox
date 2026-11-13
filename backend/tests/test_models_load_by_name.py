@@ -78,7 +78,7 @@ def test_load_by_model_name_targets_that_model(client, loaded):
 
 @pytest.mark.parametrize(
     "model_name",
-    ["qwen-tts-0.6B", "chatterbox-tts", "whisper-turbo", "qwen3-0.6b"],
+    ["qwen-tts-1.7B", "omnivoice", "whisper-turbo", "qwen3-4b"],
 )
 def test_load_dispatches_across_engine_families(client, loaded, model_name):
     """TTS, STT, and LLM entries all resolve through the same registry."""
@@ -134,10 +134,10 @@ def test_load_model_size_in_body_also_works(client, loaded):
 
 
 def test_unload_by_model_name_targets_that_model(client, loaded):
-    response = client.post("/models/unload", json={"model_name": "chatterbox-tts"})
+    response = client.post("/models/unload", json={"model_name": "omnivoice"})
 
     assert response.status_code == 200
-    assert loaded["by_config"] == ["unload:chatterbox-tts"]
+    assert loaded["by_config"] == ["unload:omnivoice"]
     assert loaded["qwen_unload"] == 0, "must not unload the default Qwen model instead"
 
 

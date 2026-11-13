@@ -37,10 +37,6 @@ LANGUAGE_CODE_TO_NAME = {
 }
 
 WHISPER_HF_REPOS = {
-    "base": "openai/whisper-base",
-    "small": "openai/whisper-small",
-    "medium": "openai/whisper-medium",
-    "large": "openai/whisper-large-v3",
     "turbo": "openai/whisper-large-v3-turbo",
 }
 
@@ -226,9 +222,7 @@ _OPENAI_COMPAT_CACHE_KEY = "openai_compat"
 # The factory function uses this for the if/elif chain; the model configs live on the backend classes.
 TTS_ENGINES = {
     "qwen": "Qwen TTS",
-    "qwen_custom_voice": "Qwen CustomVoice",
     "qwen_voice_design": "Qwen VoiceDesign",
-    "chatterbox": "Chatterbox TTS",
     "omnivoice": "OmniVoice",
 }
 
@@ -240,7 +234,6 @@ LLM_ENGINES = {
 def _get_qwen_model_configs() -> list[ModelConfig]:
     """Return Qwen model configs with backend-aware HF repo IDs."""
     repo_1_7b = "Qwen/Qwen3-TTS-12Hz-1.7B-Base"
-    repo_0_6b = "Qwen/Qwen3-TTS-12Hz-0.6B-Base"
 
     return [
         ModelConfig(
@@ -251,42 +244,6 @@ def _get_qwen_model_configs() -> list[ModelConfig]:
             model_size="1.7B",
             size_mb=3500,
             supports_instruct=False,  # Base model drops instruct silently
-            languages=["zh", "en", "ja", "ko", "de", "fr", "ru", "pt", "es", "it"],
-        ),
-        ModelConfig(
-            model_name="qwen-tts-0.6B",
-            display_name="Qwen TTS 0.6B",
-            engine="qwen",
-            hf_repo_id=repo_0_6b,
-            model_size="0.6B",
-            size_mb=1200,
-            supports_instruct=False,
-            languages=["zh", "en", "ja", "ko", "de", "fr", "ru", "pt", "es", "it"],
-        ),
-    ]
-
-
-def _get_qwen_custom_voice_configs() -> list[ModelConfig]:
-    """Return Qwen CustomVoice model configs."""
-    return [
-        ModelConfig(
-            model_name="qwen-custom-voice-1.7B",
-            display_name="Qwen CustomVoice 1.7B",
-            engine="qwen_custom_voice",
-            hf_repo_id="Qwen/Qwen3-TTS-12Hz-1.7B-CustomVoice",
-            model_size="1.7B",
-            size_mb=3500,
-            supports_instruct=True,
-            languages=["zh", "en", "ja", "ko", "de", "fr", "ru", "pt", "es", "it"],
-        ),
-        ModelConfig(
-            model_name="qwen-custom-voice-0.6B",
-            display_name="Qwen CustomVoice 0.6B",
-            engine="qwen_custom_voice",
-            hf_repo_id="Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice",
-            model_size="0.6B",
-            size_mb=1200,
-            supports_instruct=True,
             languages=["zh", "en", "ja", "ko", "de", "fr", "ru", "pt", "es", "it"],
         ),
     ]
@@ -314,39 +271,6 @@ def _get_qwen_voice_design_configs() -> list[ModelConfig]:
 def _get_non_qwen_tts_configs() -> list[ModelConfig]:
     """Return model configs for non-Qwen TTS engines."""
     return [
-        ModelConfig(
-            model_name="chatterbox-tts",
-            display_name="Chatterbox TTS (Multilingual)",
-            engine="chatterbox",
-            hf_repo_id="ResembleAI/chatterbox",
-            size_mb=3200,
-            needs_trim=True,
-            languages=[
-                "zh",
-                "en",
-                "ja",
-                "ko",
-                "de",
-                "fr",
-                "ru",
-                "pt",
-                "es",
-                "it",
-                "he",
-                "ar",
-                "da",
-                "el",
-                "fi",
-                "hi",
-                "ms",
-                "nl",
-                "no",
-                "pl",
-                "sv",
-                "sw",
-                "tr",
-            ],
-        ),
         ModelConfig(
             model_name="omnivoice",
             # Non-commercial: the OmniVoice weights are CC-BY-NC (the code is
@@ -395,34 +319,6 @@ def _get_whisper_configs() -> list[ModelConfig]:
     """Return Whisper STT model configs."""
     return [
         ModelConfig(
-            model_name="whisper-base",
-            display_name="Whisper Base",
-            engine="whisper",
-            hf_repo_id="openai/whisper-base",
-            model_size="base",
-        ),
-        ModelConfig(
-            model_name="whisper-small",
-            display_name="Whisper Small",
-            engine="whisper",
-            hf_repo_id="openai/whisper-small",
-            model_size="small",
-        ),
-        ModelConfig(
-            model_name="whisper-medium",
-            display_name="Whisper Medium",
-            engine="whisper",
-            hf_repo_id="openai/whisper-medium",
-            model_size="medium",
-        ),
-        ModelConfig(
-            model_name="whisper-large",
-            display_name="Whisper Large",
-            engine="whisper",
-            hf_repo_id="openai/whisper-large-v3",
-            model_size="large",
-        ),
-        ModelConfig(
             model_name="whisper-turbo",
             display_name="Whisper Turbo",
             engine="whisper",
@@ -437,8 +333,6 @@ def _get_qwen_llm_configs() -> list[ModelConfig]:
 
     Upstream instruct weights, run through PyTorch.
     """
-    repo_0_6 = "Qwen/Qwen3-0.6B"
-    repo_1_7 = "Qwen/Qwen3-1.7B"
     repo_4 = "Qwen/Qwen3-4B"
 
     common_languages = [
@@ -446,24 +340,6 @@ def _get_qwen_llm_configs() -> list[ModelConfig]:
     ]
 
     return [
-        ModelConfig(
-            model_name="qwen3-0.6b",
-            display_name="Qwen3 0.6B",
-            engine="qwen_llm",
-            hf_repo_id=repo_0_6,
-            model_size="0.6B",
-            size_mb=1400,
-            languages=common_languages,
-        ),
-        ModelConfig(
-            model_name="qwen3-1.7b",
-            display_name="Qwen3 1.7B",
-            engine="qwen_llm",
-            hf_repo_id=repo_1_7,
-            model_size="1.7B",
-            size_mb=3500,
-            languages=common_languages,
-        ),
         ModelConfig(
             model_name="qwen3-4b",
             display_name="Qwen3 4B",
@@ -480,7 +356,6 @@ def get_all_model_configs() -> list[ModelConfig]:
     """Return the full list of model configs (TTS + STT + LLM)."""
     return (
         _get_qwen_model_configs()
-        + _get_qwen_custom_voice_configs()
         + _get_qwen_voice_design_configs()
         + _get_non_qwen_tts_configs()
         + _get_whisper_configs()
@@ -492,7 +367,6 @@ def get_tts_model_configs() -> list[ModelConfig]:
     """Return only TTS model configs."""
     return (
         _get_qwen_model_configs()
-        + _get_qwen_custom_voice_configs()
         + _get_qwen_voice_design_configs()
         + _get_non_qwen_tts_configs()
     )
@@ -544,7 +418,7 @@ def engine_has_model_sizes(engine: str) -> bool:
 async def load_engine_model(engine: str, model_size: str = "default") -> None:
     """Load a model for the given engine, handling engines with multiple model sizes."""
     backend = get_tts_backend_for_engine(engine)
-    if engine in ("qwen", "qwen_custom_voice"):
+    if engine == "qwen":
         await backend.load_model_async(model_size)
     else:
         await backend.load_model()
@@ -561,7 +435,7 @@ async def ensure_model_cached_or_raise(engine: str, model_size: str = "default")
             cfg = c
             break
 
-    if engine in ("qwen", "qwen_custom_voice"):
+    if engine == "qwen":
         if not backend._is_model_cached(model_size):
             raise HTTPException(
                 status_code=400,
@@ -609,15 +483,6 @@ def unload_model_by_config(config: ModelConfig) -> bool:
             return True
         return False
 
-    if config.engine == "qwen_custom_voice":
-        backend = get_tts_backend_for_engine(config.engine)
-        loaded_size = getattr(backend, "_current_model_size", None) or getattr(backend, "model_size", None)
-        if backend.is_loaded() and loaded_size == config.model_size:
-            clear_voice_prompt_memory_cache()
-            backend.unload_model()
-            return True
-        return False
-
     # All other TTS engines
     backend = get_tts_backend_for_engine(config.engine)
     if backend.is_loaded():
@@ -647,11 +512,6 @@ def check_model_loaded(config: ModelConfig) -> bool:
             loaded_size = getattr(tts_model, "_current_model_size", None) or getattr(tts_model, "model_size", None)
             return tts_model.is_loaded() and loaded_size == config.model_size
 
-        if config.engine == "qwen_custom_voice":
-            backend = get_tts_backend_for_engine(config.engine)
-            loaded_size = getattr(backend, "_current_model_size", None) or getattr(backend, "model_size", None)
-            return backend.is_loaded() and loaded_size == config.model_size
-
         backend = get_tts_backend_for_engine(config.engine)
         return backend.is_loaded()
     except Exception:
@@ -668,9 +528,6 @@ def get_model_load_func(config: ModelConfig):
 
     if config.engine == "qwen":
         return lambda: tts.get_tts_model().load_model(config.model_size)
-
-    if config.engine == "qwen_custom_voice":
-        return lambda: get_tts_backend_for_engine(config.engine).load_model(config.model_size)
 
     if config.engine == "qwen_llm":
         return lambda: get_llm_backend_for_engine("qwen_llm").load_model(config.model_size)
@@ -714,18 +571,10 @@ def get_tts_backend_for_engine(engine: str) -> TTSBackend:
             from .pytorch_backend import PyTorchTTSBackend
 
             backend = PyTorchTTSBackend()
-        elif engine == "chatterbox":
-            from .chatterbox_backend import ChatterboxTTSBackend
-
-            backend = ChatterboxTTSBackend()
         elif engine == "omnivoice":
             from .omnivoice_backend import OmniVoiceBackend
 
             backend = OmniVoiceBackend()
-        elif engine == "qwen_custom_voice":
-            from .qwen_custom_voice_backend import QwenCustomVoiceBackend
-
-            backend = QwenCustomVoiceBackend()
         elif engine == "qwen_voice_design":
             from .qwen_voice_design_backend import QwenVoiceDesignBackend
 

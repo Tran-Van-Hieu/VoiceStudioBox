@@ -87,7 +87,7 @@ async def test_designed_profile_rejects_cloning_engine(test_db, mock_profiles_di
         test_db,
     )
     with pytest.raises(ValueError, match="does not support designed"):
-        validate_profile_engine(profile, "chatterbox")
+        validate_profile_engine(profile, "omnivoice")
     validate_profile_engine(profile, "qwen_voice_design")
 
 

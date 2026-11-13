@@ -6,6 +6,7 @@ import {
   FileUp,
   Loader2,
   Play,
+  RefreshCw,
   Trash2,
   XCircle,
 } from 'lucide-react';
@@ -15,6 +16,13 @@ import {
   ENGINE_OPTIONS,
   isProfileCompatibleWithEngine,
 } from '@/components/Generation/EngineModelSelector';
+import {
+  heardOf,
+  PlayButton,
+  QualityBadge,
+  WordDiffList,
+  wordDiffOf,
+} from '@/components/Studio/common';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -28,6 +36,7 @@ import {
 import { Slider } from '@/components/ui/slider';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
+import { apiClient } from '@/lib/api/client';
 import {
   type BatchDetail,
   type BatchItemInput,
@@ -135,6 +144,31 @@ export function BatchTab() {
   useEffect(() => {
     if (!activeId && batches?.length) setActiveId(batches[0].id);
   }, [batches, activeId]);
+
+  // ── Regenerate ───────────────────────────────────────────────────────
+  const [selected, setSelected] = useState<Set<number>>(new Set());
+  // biome-ignore lint/correctness/useExhaustiveDependencies: clear the ticks when another batch is shown
+  useEffect(() => setSelected(new Set()), [activeId]);
+  const [regenerating, setRegenerating] = useState(false);
+  const regenerate = async (indices: number[]) => {
+    if (!active || !indices.length) return;
+    setRegenerating(true);
+    try {
+      queryClient.setQueryData(
+        ['batch', active.id],
+        await extrasApi.regenerateBatch(active.id, indices),
+      );
+      queryClient.invalidateQueries({ queryKey: ['batch', active.id] });
+    } catch (e) {
+      toast({
+        title: t('batch.startFailed'),
+        description: (e as Error).message,
+        variant: 'destructive',
+      });
+    } finally {
+      setRegenerating(false);
+    }
+  };
 
   // ── Download options ─────────────────────────────────────────────────
   const [fmt, setFmt] = useState<ExportFormat | null>(null);
@@ -244,6 +278,9 @@ export function BatchTab() {
   const done = active?.counts.completed ?? 0;
   const failed = (active?.counts.failed ?? 0) + (active?.counts.missing ?? 0);
   const progress = active?.total ? ((done + failed) / active.total) * 100 : 0;
+  const failedItems = (active?.items ?? [])
+    .filter((it) => it.status === 'failed' || it.status === 'missing' || it.final?.level === 'red')
+    .map((it) => it.index);
 
   return (
     <div className="h-full overflow-y-auto pb-24">
@@ -536,30 +573,114 @@ export function BatchTab() {
                 />
               </div>
 
-              <div className="max-h-[320px] overflow-y-auto divide-y divide-border/60 rounded-md border">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer">
+                  <Checkbox
+                    checked={selected.size > 0 && selected.size === active.items.length}
+                    onCheckedChange={(v) =>
+                      setSelected(v ? new Set(active.items.map((it) => it.index)) : new Set())
+                    }
+                  />
+                  {t('studio.check.selectAll')}
+                </label>
+                <span className="flex-1" />
+                {selected.size > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7"
+                    disabled={regenerating}
+                    onClick={() => regenerate([...selected].sort((a, b) => a - b))}
+                  >
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    {t('studio.check.regenSelected', { count: selected.size })}
+                  </Button>
+                )}
+                {failedItems.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 border-red-500/50 text-red-500"
+                    disabled={regenerating}
+                    onClick={() => regenerate(failedItems)}
+                  >
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    {t('studio.check.regenFailed', { count: failedItems.length })}
+                  </Button>
+                )}
+              </div>
+              <div className="max-h-[420px] overflow-y-auto divide-y divide-border/60 rounded-md border">
                 {active.items.map((it) => (
-                  <div key={it.index} className="flex items-center gap-2 px-3 py-1.5 text-sm">
-                    <span className="text-xs tabular-nums text-muted-foreground w-8">
-                      {it.index + 1}
-                    </span>
-                    {it.status === 'completed' ? (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
-                    ) : it.status === 'failed' || it.status === 'missing' ? (
-                      <XCircle className="h-4 w-4 text-red-500 shrink-0" />
-                    ) : (
-                      <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
+                  <div
+                    key={it.index}
+                    className={cn(
+                      'px-3 py-1.5 text-sm space-y-1',
+                      it.final?.level === 'red' && 'bg-red-500/5',
                     )}
-                    <span className="flex-1 truncate" title={it.error ?? it.text}>
-                      {it.filename ? (
-                        <span className="text-muted-foreground mr-1">[{it.filename}]</span>
-                      ) : null}
-                      {it.text}
-                    </span>
-                    {it.duration ? (
-                      <span className="text-xs tabular-nums text-muted-foreground">
-                        {it.duration.toFixed(1)}s
+                  >
+                    <div className="flex items-center gap-2">
+                      <Checkbox
+                        checked={selected.has(it.index)}
+                        onCheckedChange={(v) =>
+                          setSelected((prev) => {
+                            const next = new Set(prev);
+                            if (v) next.add(it.index);
+                            else next.delete(it.index);
+                            return next;
+                          })
+                        }
+                      />
+                      <span className="text-xs tabular-nums text-muted-foreground w-8">
+                        {it.index + 1}
                       </span>
-                    ) : null}
+                      {it.status === 'completed' ? (
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
+                      ) : it.status === 'failed' || it.status === 'missing' ? (
+                        <XCircle className="h-4 w-4 text-red-500 shrink-0" />
+                      ) : (
+                        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground shrink-0" />
+                      )}
+                      <span className="flex-1 truncate" title={it.error ?? it.text}>
+                        {it.filename ? (
+                          <span className="text-muted-foreground mr-1">[{it.filename}]</span>
+                        ) : null}
+                        {it.text}
+                      </span>
+                      {it.duration ? (
+                        <span className="text-xs tabular-nums text-muted-foreground">
+                          {it.duration.toFixed(1)}s
+                        </span>
+                      ) : null}
+                      {it.final && <QualityBadge level={it.final.level} />}
+                      {it.status === 'completed' && it.generation_id && (
+                        <PlayButton
+                          className="h-7 w-7"
+                          url={apiClient.getAudioUrl(it.generation_id)}
+                        />
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2"
+                        disabled={
+                          regenerating ||
+                          it.status === 'generating' ||
+                          it.status === 'loading_model'
+                        }
+                        onClick={() => regenerate([it.index])}
+                      >
+                        <RefreshCw className="h-3 w-3 mr-1" />
+                        {t('studio.check.regen')}
+                      </Button>
+                    </div>
+                    {it.status === 'completed' && wordDiffOf(it.final).length > 0 && (
+                      <div className="pl-16">
+                        <WordDiffList ops={wordDiffOf(it.final)} heard={heardOf(it.final)} />
+                      </div>
+                    )}
+                    {it.error && it.status !== 'completed' && (
+                      <p className="pl-16 text-xs text-red-500">{it.error}</p>
+                    )}
                   </div>
                 ))}
               </div>

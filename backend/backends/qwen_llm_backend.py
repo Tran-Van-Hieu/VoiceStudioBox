@@ -22,8 +22,6 @@ logger = logging.getLogger(__name__)
 
 
 PYTORCH_HF_REPOS = {
-    "0.6B": "Qwen/Qwen3-0.6B",
-    "1.7B": "Qwen/Qwen3-1.7B",
     "4B": "Qwen/Qwen3-4B",
 }
 
@@ -50,7 +48,7 @@ def _build_messages(
 class PyTorchQwenLLMBackend:
     """Qwen3 LLM backend using HuggingFace transformers."""
 
-    def __init__(self, model_size: str = "0.6B"):
+    def __init__(self, model_size: str = "4B"):
         self.model = None
         self.tokenizer = None
         self.model_size = model_size
@@ -64,16 +62,13 @@ class PyTorchQwenLLMBackend:
         return self.model is not None
 
     def _get_model_path(self, model_size: str) -> str:
-        if model_size not in PYTORCH_HF_REPOS:
-            raise ValueError(f"Unknown Qwen3 size: {model_size}")
-        return PYTORCH_HF_REPOS[model_size]
+        return PYTORCH_HF_REPOS["4B"]  # the only Qwen3 the app ships
 
     def _is_model_cached(self, model_size: str) -> bool:
         return is_model_cached(self._get_model_path(model_size))
 
     async def load_model(self, model_size: Optional[str] = None) -> None:
-        if model_size is None:
-            model_size = self.model_size
+        model_size = "4B"  # old settings may still name 0.6B / 1.7B
 
         if self.model is not None and self._current_model_size == model_size:
             return

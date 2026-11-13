@@ -55,32 +55,12 @@ async function fetchHuggingFaceModelInfo(repoId: string): Promise<HuggingFaceMod
 const MODEL_DESCRIPTIONS: Record<string, string> = {
   'qwen-tts-1.7B':
     'High-quality multilingual TTS by Alibaba. Supports 10 languages with natural prosody and voice cloning from short reference audio.',
-  'qwen-tts-0.6B':
-    'Lightweight version of Qwen TTS. Same language support with faster inference, ideal for lower-end hardware.',
-  'chatterbox-tts':
-    'Production-grade open source TTS by Resemble AI. Supports 23 languages with voice cloning and emotion exaggeration control.',
   omnivoice:
     'OmniVoice by k2-fsa. Zero-shot voice cloning via a diffusion language model, plus attribute-based voice design (gender, age, pitch, accent). The model covers 600+ languages; Voice Studio Box exposes the 23 in its own language list. 24kHz output. NON-COMMERCIAL: the weights are CC-BY-NC (code is Apache 2.0; the bundled Higgs Audio V2 codec is under the Boson community licence), so do not use output commercially.',
-  'qwen-custom-voice-1.7B':
-    'Qwen3-TTS CustomVoice 1.7B by Alibaba. 9 premium preset voices with instruct-based style control for tone, emotion, and prosody. Supports 10 languages.',
-  'qwen-custom-voice-0.6B':
-    'Qwen3-TTS CustomVoice 0.6B by Alibaba. Lightweight version with the same 9 preset voices and instruct control. Faster inference for lower-end hardware.',
   'qwen-voice-design-1.7B':
     'Qwen3-TTS VoiceDesign 1.7B by Alibaba. Builds a voice from a written description instead of reference audio or a preset. Supports the same 10 languages.',
-  'whisper-base':
-    'Smallest Whisper model (74M parameters). Fast transcription with moderate accuracy.',
-  'whisper-small':
-    'Whisper Small (244M parameters). Good balance of speed and accuracy for transcription.',
-  'whisper-medium':
-    'Whisper Medium (769M parameters). Higher accuracy transcription at moderate speed.',
-  'whisper-large':
-    'Whisper Large (1.5B parameters). Best accuracy for speech-to-text across multiple languages.',
   'whisper-turbo':
     'Whisper Large v3 Turbo. Pruned for significantly faster inference while maintaining near-large accuracy.',
-  'qwen3-0.6b':
-    'Qwen3 0.6B — smallest of the Qwen3 instruct family. Very fast on CPU, runs at ~400 MB quantized on Apple Silicon. Good for dictation refinement and short completions.',
-  'qwen3-1.7b':
-    'Qwen3 1.7B — balanced size and quality. Handles subtle self-corrections and technical vocabulary better than the 0.6B. Runs at ~1.1 GB quantized on Apple Silicon.',
   'qwen3-4b':
     'Qwen3 4B — highest quality local refinement and longer-form reasoning. ~2.5 GB quantized on Apple Silicon, ~8 GB at full precision on PyTorch.',
 };
@@ -404,9 +384,7 @@ export function ModelManagement() {
     modelStatus?.models.filter(
       (m) =>
         m.model_name.startsWith('qwen-tts') ||
-        m.model_name.startsWith('qwen-custom-voice') ||
         m.model_name.startsWith('qwen-voice-design') ||
-        m.model_name.startsWith('chatterbox') ||
         m.model_name.startsWith('omnivoice'),
     ) ?? [];
   const whisperModels = modelStatus?.models.filter((m) => m.model_name.startsWith('whisper')) ?? [];

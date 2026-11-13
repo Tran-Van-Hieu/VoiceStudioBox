@@ -31,7 +31,7 @@ from . import history
 
 logger = logging.getLogger(__name__)
 
-CLONING_ENGINES = {"qwen", "chatterbox", "omnivoice"}
+CLONING_ENGINES = {"qwen", "omnivoice"}
 
 # Engines that synthesise a voice from a natural-language description
 # (voice_type "designed") rather than from samples or a preset id.
@@ -75,11 +75,6 @@ def _profile_to_response(
 
 
 def _get_preset_voice_ids(engine: str) -> set[str]:
-    if engine == "qwen_custom_voice":
-        from ..backends.qwen_custom_voice_backend import QWEN_CUSTOM_VOICES
-
-        return {voice_id for voice_id, _name, _gender, _lang, _desc in QWEN_CUSTOM_VOICES}
-
     return set()
 
 

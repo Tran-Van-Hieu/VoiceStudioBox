@@ -1,3 +1,4 @@
+import type { FinalCheck } from './studio';
 /**
  * API client for the vi-upgrades features: extras settings (speed,
  * pronunciation dictionary, export, refine prompt, VRAM), VRAM status,
@@ -29,6 +30,8 @@ export interface ExtrasSettings {
   qc_mode: 'off' | 'omnivoice' | 'all';
   qc_max_retries: number;
   qc_threshold: number;
+  qc_match: 'exact' | 'tolerant';
+  qc_tones: boolean;
   omnivoice_steps: number;
   queue_cooldown_seconds: number;
   sample_emotions: Record<string, string>;
@@ -91,6 +94,8 @@ export interface BatchDetail {
     status: BatchItemStatus;
     duration: number | null;
     error: string | null;
+    takes: string[];
+    final: FinalCheck | null;
   }[];
 }
 
@@ -157,6 +162,12 @@ export const extrasApi = {
     json<BatchDetail>('/batch', { method: 'POST', body: JSON.stringify(data) }),
   listBatches: () => json<BatchSummary[]>('/batch'),
   getBatch: (id: string) => json<BatchDetail>(`/batch/${id}`),
+  /** New take for these items (0-based) with the batch's settings; ``texts`` overrides edited ones. */
+  regenerateBatch: (id: string, indices: number[], texts: Record<number, string> = {}) =>
+    json<BatchDetail>(`/batch/${id}/regenerate`, {
+      method: 'POST',
+      body: JSON.stringify({ indices, texts }),
+    }),
   deleteBatch: (id: string) => json<{ deleted: boolean }>(`/batch/${id}`, { method: 'DELETE' }),
   downloadBatch: (
     id: string,

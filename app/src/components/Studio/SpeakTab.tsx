@@ -1,10 +1,8 @@
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { Download, Eye, FileUp, Loader2, Play } from 'lucide-react';
+import { Download, Eye, FileUp, Loader2, Play, RefreshCw } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { BatchTab } from '@/components/BatchTab/BatchTab';
-import { ScriptTab } from './ScriptTab';
-import { StudioTab } from './StudioTab';
 import { Button } from '@/components/ui/button';
 import {
   Select,
@@ -17,16 +15,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { apiClient } from '@/lib/api/client';
-import { extrasApi, type ExportFormat } from '@/lib/api/extras';
+import { type ExportFormat, extrasApi } from '@/lib/api/extras';
 import { studioApi } from '@/lib/api/studio';
 import type { GenerationRequest } from '@/lib/api/types';
-import { useExtrasSettings } from '@/lib/hooks/useExtras';
 import { EMOTIONS, type EmotionId, emotionSupport } from '@/lib/constants/emotions';
+import { useExtrasSettings } from '@/lib/hooks/useExtras';
 import { useProfiles } from '@/lib/hooks/useProfiles';
 import { usePlayerStore } from '@/stores/playerStore';
 import {
-  engineSupports,
   ErrorNote,
+  engineSupports,
   Field,
   GenerationQuality,
   LanguagePicker,
@@ -38,6 +36,8 @@ import {
   useSaveBlob,
   VoicePicker,
 } from './common';
+import { ScriptTab } from './ScriptTab';
+import { StudioTab } from './StudioTab';
 
 export const PREFILL_KEY = 'voicebox.prefill';
 
@@ -121,8 +121,7 @@ function SingleSpeak() {
     if (!profile) return;
     setLanguage(profile.language);
     const engine = profile.default_engine ?? profile.preset_engine;
-    if (engine)
-      setModel(engine === 'qwen' || engine === 'qwen_custom_voice' ? `${engine}:1.7B` : engine);
+    if (engine) setModel(engine === 'qwen' ? 'qwen:1.7B' : engine);
   }, [profile]);
 
   const { engine, modelSize } = parseEngine(model ?? '');
@@ -241,7 +240,18 @@ function SingleSpeak() {
         {generation && (
           <Panel title={t('studio.speak.result')}>
             {generation.status === 'failed' ? (
-              <ErrorNote>{generation.error}</ErrorNote>
+              <div className="space-y-2">
+                <ErrorNote>{generation.error}</ErrorNote>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busy || !text.trim() || !profileId || !languageOk}
+                  onClick={() => generate.mutate()}
+                >
+                  <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                  {t('studio.check.regen')}
+                </Button>
+              </div>
             ) : generation.status !== 'completed' ? (
               <p className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -280,6 +290,15 @@ function SingleSpeak() {
                   </Button>
                   <Button size="sm" variant="outline" onClick={() => download('srt')}>
                     SRT
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={busy || !text.trim() || !profileId || !languageOk}
+                    onClick={() => generate.mutate()}
+                  >
+                    <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+                    {t('studio.check.regen')}
                   </Button>
                 </div>
                 <GenerationQuality id={generation.id} refreshKey={generation.audio_path} />

@@ -39,32 +39,6 @@ export type LanguageCode = keyof typeof ALL_LANGUAGES;
 /** Per-engine supported language codes. */
 export const ENGINE_LANGUAGES: Record<string, readonly LanguageCode[]> = {
   qwen: ['zh', 'en', 'ja', 'ko', 'de', 'fr', 'ru', 'pt', 'es', 'it'],
-  chatterbox: [
-    'ar',
-    'da',
-    'de',
-    'el',
-    'en',
-    'es',
-    'fi',
-    'fr',
-    'he',
-    'hi',
-    'it',
-    'ja',
-    'ko',
-    'ms',
-    'nl',
-    'no',
-    'pl',
-    'pt',
-    'ru',
-    'sv',
-    'sw',
-    'tr',
-    'zh',
-  ],
-  qwen_custom_voice: ['zh', 'en', 'ja', 'ko', 'de', 'fr', 'ru', 'pt', 'es', 'it'],
   qwen_voice_design: ['zh', 'en', 'ja', 'ko', 'de', 'fr', 'ru', 'pt', 'es', 'it'],
   // OmniVoice covers 600+ languages. Listed here are the ones ALL_LANGUAGES
   // already knows -- widening that list is a separate change.

@@ -397,7 +397,8 @@ async def generate_chunked(
         chunk_text: str, chunk_seed: int | None
     ) -> tuple[np.ndarray, int]:
         abort.check()
-        if qc is None or abort.checks_skipped():
+        # With no retries allowed, listening here only doubles the final check's work.
+        if qc is None or qc.max_retries == 0 or abort.checks_skipped():
             return await generate_one(chunk_text, chunk_seed)
 
         from dataclasses import replace

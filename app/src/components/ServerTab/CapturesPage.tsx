@@ -140,10 +140,10 @@ export function CapturesPage() {
   const { data: profiles } = useProfiles();
   const { toast } = useToast();
   const readiness = useDictationReadiness();
-  const sttModel = settings?.stt_model ?? 'turbo';
+  const sttModel = 'turbo'; // the only Whisper the app ships; old settings may name another
   const language = settings?.language ?? 'auto';
   const autoRefine = settings?.auto_refine ?? true;
-  const llmModel = settings?.llm_model ?? '0.6B';
+  const llmModel = '4B'; // the only Qwen3 the app ships; old settings may name another
   const smartCleanup = settings?.smart_cleanup ?? true;
   const selfCorrection = settings?.self_correction ?? true;
   const preserveTechnical = settings?.preserve_technical ?? true;
@@ -383,26 +383,6 @@ export function CapturesPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="base">
-                    {t('settings.captures.transcription.model.base', {
-                      tail: t('settings.captures.transcription.model.tail.fast'),
-                    })}
-                  </SelectItem>
-                  <SelectItem value="small">
-                    {t('settings.captures.transcription.model.small', {
-                      tail: t('settings.captures.transcription.model.tail.balanced'),
-                    })}
-                  </SelectItem>
-                  <SelectItem value="medium">
-                    {t('settings.captures.transcription.model.medium', {
-                      tail: t('settings.captures.transcription.model.tail.higher'),
-                    })}
-                  </SelectItem>
-                  <SelectItem value="large">
-                    {t('settings.captures.transcription.model.large', {
-                      tail: t('settings.captures.transcription.model.tail.best'),
-                    })}
-                  </SelectItem>
                   <SelectItem value="turbo">
                     {t('settings.captures.transcription.model.turbo', {
                       tail: t('settings.captures.transcription.model.tail.nearBest'),
@@ -482,16 +462,6 @@ export function CapturesPage() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="0.6B">
-                    {t('settings.captures.refinement.model.size06', {
-                      tail: t('settings.captures.refinement.model.tail.veryFast'),
-                    })}
-                  </SelectItem>
-                  <SelectItem value="1.7B">
-                    {t('settings.captures.refinement.model.size17', {
-                      tail: t('settings.captures.refinement.model.tail.fast'),
-                    })}
-                  </SelectItem>
                   <SelectItem value="4B">
                     {t('settings.captures.refinement.model.size40', {
                       tail: t('settings.captures.refinement.model.tail.fullQuality'),

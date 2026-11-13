@@ -334,8 +334,17 @@ def _music_gain(spoken: np.ndarray, speech_pct: float, pause_pct: float, rate: i
 
 
 def merge(project: dict, db) -> tuple[np.ndarray, int, list[dict]]:
-    """One track of every segment's active take, plus the music bed if any."""
+    """One track of every segment's active take in script order, plus the music bed if any.
+
+    Refuses while any part with text is unfinished: skipping one would shift
+    every later line and the merged file would no longer follow the script.
+    """
     clips = _active_clips(project, db)
+    done = {s["id"] for s, _audio, _gen in clips}
+    unfinished = [i for i, s in enumerate(project["segments"], 1) if s["text"].strip() and s["id"] not in done]
+    if unfinished:
+        shown = ", ".join(str(n) for n in unfinished[:20]) + (f" … (+{len(unfinished) - 20})" if len(unfinished) > 20 else "")
+        raise ValueError(f"Chưa xong các đoạn: {shown}. Tạo lại chúng trước khi gộp.")
     if not clips:
         raise ValueError("Chưa có đoạn nào hoàn tất.")
     parts: list[np.ndarray] = []

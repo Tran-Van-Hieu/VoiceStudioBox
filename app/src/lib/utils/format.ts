@@ -57,9 +57,7 @@ export function formatAbsoluteDate(date: string | Date): string {
 
 const ENGINE_DISPLAY_NAMES: Record<string, string> = {
   qwen: 'Qwen',
-  qwen_custom_voice: 'Qwen CustomVoice',
   qwen_voice_design: 'Qwen VoiceDesign',
-  chatterbox: 'Chatterbox',
   omnivoice: 'OmniVoice',
 };
 
