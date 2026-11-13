@@ -65,7 +65,9 @@ SKIP_SYNC = {"cache", "backends", "models", "voicebox.db", "voicebox.db-wal", "v
 def restore(persist: Path, data: Path) -> None:
     """Copy a saved library (Drive) to the local data dir before the server starts."""
     if (persist / "voicebox.db").exists() and not (data / "voicebox.db").exists():
-        shutil.copytree(persist, data, dirs_exist_ok=True, ignore=shutil.ignore_patterns("link.txt", "*.tmp"))
+        # A stale -wal next to the DB would be replayed over it on open and roll it back.
+        shutil.copytree(persist, data, dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns("link.txt", "*.tmp", "voicebox.db-wal", "voicebox.db-shm"))
         print(f"Restored voices and history from {persist}")
 
 
@@ -89,6 +91,8 @@ def backup(data: Path, persist: Path) -> None:
     shutil.copyfile(snap, persist / "voicebox.db.tmp")
     os.replace(persist / "voicebox.db.tmp", persist / "voicebox.db")
     snap.unlink()
+    for leftover in ("voicebox.db-wal", "voicebox.db-shm"):  # from when the DB lived on Drive
+        (persist / leftover).unlink(missing_ok=True)
 
     keep = set()
     for f in data.rglob("*"):

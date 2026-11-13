@@ -46,3 +46,28 @@ def test_backup_mirrors_and_restore_brings_voices_back(tmp_path):
     assert names == ["voice A", "voice B"]
     assert (fresh / "profiles" / "a" / "sample.wav").exists()
     assert not (fresh / "link.txt").exists()
+
+
+def test_stale_wal_on_drive_does_not_roll_back_the_restore(tmp_path):
+    data, drive, old = tmp_path / "data", tmp_path / "drive", tmp_path / "old"
+    for d in (data, drive, old):
+        d.mkdir()
+    # Leftover from when SQLite ran on Drive: a -wal never checkpointed.
+    con = sqlite3.connect(old / "voicebox.db")
+    con.execute("PRAGMA journal_mode=WAL")
+    con.execute("PRAGMA wal_autocheckpoint=0")
+    con.execute("CREATE TABLE p (name TEXT)")
+    con.execute("INSERT INTO p VALUES ('stale')")
+    con.commit()
+    (drive / "voicebox.db-wal").write_bytes((old / "voicebox.db-wal").read_bytes())
+    con.close()
+
+    _db(data / "voicebox.db", ["voice A"])
+    remote_server.backup(data, drive)
+    assert not (drive / "voicebox.db-wal").exists()
+
+    (drive / "voicebox.db-wal").write_bytes(b"junk")  # even if one reappears
+    fresh = tmp_path / "next-session"
+    remote_server.restore(drive, fresh)
+    assert not (fresh / "voicebox.db-wal").exists()
+    assert [r[0] for r in sqlite3.connect(fresh / "voicebox.db").execute("SELECT name FROM p")] == ["voice A"]
