@@ -22,6 +22,9 @@ qwen-tts>=0.1.1
 # DeepFilterNet (noise removal) is optional: it has no Python 3.12 wheels, so
 # it is not listed here and denoise() skips cleanly when it is missing.
 demucs>=4.0.1
+# onnx (pulled in by chatterbox's voice encoder) needs float4 types from 0.5;
+# Colab ships 0.4.x for TensorFlow, which breaks the speaker-similarity check.
+ml_dtypes>=0.5
 
 # Chatterbox TTS sub-dependencies (chatterbox-tts itself is installed
 # --no-deps in the setup script because it pins numpy<1.26 / torch==2.6

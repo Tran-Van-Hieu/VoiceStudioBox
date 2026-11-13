@@ -180,12 +180,14 @@ def main() -> None:
         # Keep reading: a full stderr pipe would block cloudflared and freeze the tunnel.
         threading.Thread(target=lambda: [None for _ in tunnel.stderr], daemon=True).start()
         server.wait()
+    except KeyboardInterrupt:  # the ■ button in Colab
+        print("\nStopping...")
     finally:
         stop.set()
         server.terminate()
         try:
             server.wait(timeout=20)
-        except subprocess.TimeoutExpired:  # open browser tabs keep event streams alive
+        except (subprocess.TimeoutExpired, KeyboardInterrupt):  # open browser tabs keep event streams alive
             server.kill()
             server.wait()
         if persist:
