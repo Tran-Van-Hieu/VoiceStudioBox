@@ -180,7 +180,11 @@ def main() -> None:
     finally:
         stop.set()
         server.terminate()
-        server.wait(timeout=30)
+        try:
+            server.wait(timeout=20)
+        except subprocess.TimeoutExpired:  # open browser tabs keep event streams alive
+            server.kill()
+            server.wait()
         if persist:
             backup(data, persist)
             print(f"Saved voices and history to {persist}")
