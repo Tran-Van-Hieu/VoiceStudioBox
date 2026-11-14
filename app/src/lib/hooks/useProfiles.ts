@@ -75,11 +75,13 @@ export function useAddSample() {
       profileId,
       file,
       referenceText,
+      clean,
     }: {
       profileId: string;
       file: File;
       referenceText: string;
-    }) => apiClient.addProfileSample(profileId, file, referenceText),
+      clean?: boolean;
+    }) => apiClient.addProfileSample(profileId, file, referenceText, clean),
     onSuccess: (_, variables) => {
       queryClient.invalidateQueries({
         queryKey: ['profiles', variables.profileId, 'samples'],

@@ -224,6 +224,21 @@ def empty_device_cache(device: str) -> None:
         torch.mps.empty_cache()
 
 
+def cuda_half_dtype():
+    """bfloat16 where the GPU computes it natively, else float16 (Colab's T4).
+
+    Qwen 1.7B in float16 measured the same as bfloat16 (naturalness 4.21 vs 4.25,
+    4.15 vs 4.15); bfloat16 on a T4 runs emulated and slow.
+    """
+    import torch
+
+    try:
+        native = torch.cuda.is_bf16_supported(including_emulation=False)
+    except TypeError:  # older torch has no including_emulation
+        native = torch.cuda.get_device_capability()[0] >= 8
+    return torch.bfloat16 if native else torch.float16
+
+
 def manual_seed(seed: int, device: str) -> None:
     """
     Set the random seed on both CPU and the active accelerator.

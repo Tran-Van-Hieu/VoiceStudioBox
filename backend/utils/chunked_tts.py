@@ -323,23 +323,28 @@ async def generate_chunked(
     -------
     (audio, sample_rate) : Tuple[np.ndarray, int]
     """
+    def spoken(chunk_text: str) -> str:
+        if text_transform is None:
+            return chunk_text
+        out = text_transform(chunk_text) or chunk_text
+        return out if out.strip() else chunk_text
+
     async def generate_one(
         chunk_text: str,
         chunk_seed: int | None,
         retry_depth: int = 0,
+        premade: tuple[np.ndarray, int] | None = None,
     ) -> tuple[np.ndarray, int]:
-        spoken_text = chunk_text
-        if text_transform is not None:
-            spoken_text = text_transform(chunk_text) or chunk_text
-            if not spoken_text.strip():
-                spoken_text = chunk_text
-        chunk_audio, chunk_sr = await backend.generate(
-            spoken_text,
-            voice_prompt,
-            language,
-            chunk_seed,
-            instruct,
-        )
+        if premade is not None:
+            chunk_audio, chunk_sr = premade
+        else:
+            chunk_audio, chunk_sr = await backend.generate(
+                spoken(chunk_text),
+                voice_prompt,
+                language,
+                chunk_seed,
+                instruct,
+            )
 
         if runaway_detector is not None and runaway_detector(chunk_audio, chunk_sr):
             if retry_depth >= MAX_RUNAWAY_RETRIES or len(chunk_text) <= MIN_RUNAWAY_RETRY_CHARS:
@@ -394,12 +399,12 @@ async def generate_chunked(
         return np.asarray(chunk_audio, dtype=np.float32), chunk_sr
 
     async def generate_checked(
-        chunk_text: str, chunk_seed: int | None
+        chunk_text: str, chunk_seed: int | None, premade: tuple[np.ndarray, int] | None = None
     ) -> tuple[np.ndarray, int]:
         abort.check()
         # With no retries allowed, listening here only doubles the final check's work.
         if qc is None or qc.max_retries == 0 or abort.checks_skipped():
-            return await generate_one(chunk_text, chunk_seed)
+            return await generate_one(chunk_text, chunk_seed, premade=premade)
 
         from dataclasses import replace
 
@@ -417,7 +422,9 @@ async def generate_chunked(
                 chunk_seed if attempt == 0 or chunk_seed is None else chunk_seed + 7919 * attempt
             )
             with use_style(replace(current_style(), length_scale=length_scale)):
-                candidate, candidate_sr = await generate_one(chunk_text, attempt_seed)
+                candidate, candidate_sr = await generate_one(
+                    chunk_text, attempt_seed, premade=premade if attempt == 0 else None
+                )
             result = await qc.evaluate(candidate, candidate_sr, expected)
             if best is None or result.score > best.score:
                 best, best_audio, best_sr = result, candidate, candidate_sr
@@ -454,6 +461,7 @@ async def generate_chunked(
     )
     audio_chunks: List[np.ndarray] = []
     sample_rate: int | None = None
+    first_takes = await _batched_first_takes(backend, chunks, spoken, voice_prompt, language, seed, instruct)
 
     for i, chunk_text in enumerate(chunks):
         logger.info(
@@ -467,7 +475,7 @@ async def generate_chunked(
         # always produces the same output.
         chunk_seed = (seed + i) if seed is not None else None
 
-        chunk_audio, chunk_sr = await generate_checked(chunk_text, chunk_seed)
+        chunk_audio, chunk_sr = await generate_checked(chunk_text, chunk_seed, first_takes.get(i))
 
         if sentence_pause_ms > 0 and i < len(chunks) - 1 and chunk_text.rstrip()[-1:] in ".!?…。！？":
             pause = np.zeros(int(chunk_sr * sentence_pause_ms / 1000), dtype=np.float32)
@@ -481,6 +489,45 @@ async def generate_chunked(
     if segments_out is not None:
         segments_out.extend(chunk_segments(audio_chunks, chunks, sample_rate, crossfade_ms))
     return audio, sample_rate
+
+
+def batch_size(device: str) -> int:
+    """Chunks per pass: Qwen 1.7B with 4 chunks peaked at 5.9 GB on an 8 GB card."""
+    try:
+        import torch
+
+        if str(device).startswith("cuda") and torch.cuda.is_available():
+            total = torch.cuda.get_device_properties(0).total_memory / 2**30
+            return 8 if total >= 14 else 4
+    except Exception:
+        pass
+    return 1
+
+
+async def _batched_first_takes(backend, chunks, spoken, voice_prompt, language, seed, instruct) -> dict:
+    """First take of every chunk, made several at a time by engines that can.
+
+    Engines without ``generate_batch`` (OmniVoice: already fills the GPU, a batch
+    was slower) and CPU runs return nothing, and chunks are made one by one.
+    """
+    batch = getattr(backend, "generate_batch", None)
+    size = batch_size(getattr(backend, "device", "cpu")) if batch is not None else 1
+    if size < 2 or len(chunks) < 2:
+        return {}
+    takes: dict = {}
+    for start in range(0, len(chunks), size):
+        abort.check()
+        group = chunks[start : start + size]
+        logger.info("Generating chunks %d-%d of %d in one pass", start + 1, start + len(group), len(chunks))
+        result = await batch(
+            [spoken(c) for c in group], voice_prompt, language,
+            None if seed is None else seed + start, instruct,
+        )
+        if result is None:  # this prompt cannot be batched
+            return {}
+        for j, take in enumerate(result):
+            takes[start + j] = (np.asarray(take[0], dtype=np.float32), take[1])
+    return takes
 
 
 def chunk_segments(

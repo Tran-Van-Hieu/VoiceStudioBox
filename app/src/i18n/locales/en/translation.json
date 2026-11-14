@@ -1,4 +1,12 @@
 {
+  "sampleCheck": {
+    "title": "Sample check",
+    "checking": "Checking sample...",
+    "score": "Score {{score}}/100",
+    "stillAllowed": "A clone copies these flaws too. You can still use this sample.",
+    "clean": "Clean the sample (remove background noise)",
+    "cleanHint": "Turned on for noisy samples. Measured: a noisy sample makes the clone hiss too; cleaning brings it back to clean-sample quality and barely changes a sample that was already clean."
+  },
   "common": {
     "cancel": "Cancel",
     "save": "Save",

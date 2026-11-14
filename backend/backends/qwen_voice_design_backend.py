@@ -26,6 +26,7 @@ from . import TTSBackend, LANGUAGE_CODE_TO_NAME
 from .base import (
     is_model_cached,
     get_torch_device,
+    cuda_half_dtype,
     combine_voice_prompts as _combine_voice_prompts,
     model_load_progress,
 )
@@ -121,7 +122,7 @@ class QwenVoiceDesignBackend:
                 self.model = Qwen3TTSModel.from_pretrained(
                     model_path,
                     device_map=self.device,
-                    torch_dtype=torch.bfloat16,
+                    torch_dtype=cuda_half_dtype(),
                 )
 
         self._current_model_size = model_size
@@ -225,3 +226,35 @@ class QwenVoiceDesignBackend:
 
         audio, sample_rate = await asyncio.to_thread(_generate_sync)
         return audio, sample_rate
+
+    async def generate_batch(
+        self,
+        texts: list[str],
+        voice_prompt: dict,
+        language: str = "en",
+        seed: Optional[int] = None,
+        instruct: Optional[str] = None,
+    ) -> list[tuple[np.ndarray, int]]:
+        """Several chunks in one pass, same description for each."""
+        await self.load_model_async(None)
+        design_prompt = voice_prompt.get("design_prompt") or QWEN_VD_DEFAULT_DESIGN
+        combined = f"{design_prompt.rstrip('. ')}. {instruct}" if instruct else design_prompt
+        lang_name = LANGUAGE_CODE_TO_NAME.get(language, "auto")
+
+        from ..services import extras
+
+        def _run():
+            if seed is not None:
+                torch.manual_seed(seed)
+                if torch.cuda.is_available():
+                    torch.cuda.manual_seed(seed)
+            with torch.inference_mode():
+                wavs, sample_rate = self.model.generate_voice_design(
+                    text=list(texts),
+                    instruct=[combined] * len(texts),
+                    language=lang_name.capitalize() if lang_name != "auto" else "Auto",
+                    **extras.model_params("qwen_voice_design"),
+                )
+            return [(w, sample_rate) for w in wavs]
+
+        return await asyncio.to_thread(_run)

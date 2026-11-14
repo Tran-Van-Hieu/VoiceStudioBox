@@ -28,6 +28,7 @@ import { useAddSample, useProfile } from '@/lib/hooks/useProfiles';
 import { useSystemAudioCapture } from '@/lib/hooks/useSystemAudioCapture';
 import { useTranscription } from '@/lib/hooks/useTranscription';
 import { usePlatform } from '@/platform/PlatformContext';
+import { SampleCheck } from './SampleCheck';
 import { AudioSampleRecording } from './AudioSampleRecording';
 import { AudioSampleSystem } from './AudioSampleSystem';
 import { AudioSampleUpload } from './AudioSampleUpload';
@@ -51,6 +52,7 @@ interface SampleUploadProps {
 export function SampleUpload({ profileId, open, onOpenChange }: SampleUploadProps) {
   const platform = usePlatform();
   const addSample = useAddSample();
+  const [cleanSample, setCleanSample] = useState(false);
   const transcribe = useTranscription();
   const { data: profile } = useProfile(profileId);
   const { toast } = useToast();
@@ -172,6 +174,7 @@ export function SampleUpload({ profileId, open, onOpenChange }: SampleUploadProp
         profileId,
         file: data.file,
         referenceText: data.referenceText,
+        clean: cleanSample,
       });
 
       toast({
@@ -313,6 +316,8 @@ export function SampleUpload({ profileId, open, onOpenChange }: SampleUploadProp
                 </TabsContent>
               )}
             </Tabs>
+
+            <SampleCheck file={selectedFile} clean={cleanSample} onCleanChange={setCleanSample} />
 
             <FormField
               control={form.control}

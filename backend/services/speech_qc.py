@@ -49,6 +49,7 @@ MAX_CLICKS_PER_MIN = 30.0
 
 
 _NUMBER_RE = re.compile(r"\d+(?:[.,]\d+)*")
+_UNSPACED_LANGUAGES = {"ja", "zh"}
 
 
 def _spell_numbers(text: str, language: str) -> str:
@@ -83,7 +84,12 @@ def _words(text: str, language: str, tones: bool = False) -> list[str]:
     if not tones:
         text = "".join(c for c in text if not unicodedata.combining(c)).replace("đ", "d")
     text = unicodedata.normalize("NFC", text)
-    return _NON_WORD_RE.sub(" ", text.replace("-", " ")).split()
+    words = _NON_WORD_RE.sub(" ", text.replace("-", " ")).split()
+    if language in _UNSPACED_LANGUAGES:
+        # No spaces between words: a whole sentence was one "word", so a single
+        # differing kanji scored it 0. Compare character by character instead.
+        return [c for w in words for c in w]
+    return words
 
 
 def word_diff(expected: str, heard: str, language: str, tones: bool = False) -> list[dict]:
@@ -101,7 +107,8 @@ def word_diff(expected: str, heard: str, language: str, tones: bool = False) -> 
         if tag == "equal":
             continue
         kind = {"delete": "missing", "insert": "extra", "replace": "wrong"}[tag]
-        ops.append({"op": kind, "expected": " ".join(show_want[a1:a2]), "heard": " ".join(show_got[b1:b2]), "at": a1})
+        sep = "" if language in _UNSPACED_LANGUAGES else " "
+        ops.append({"op": kind, "expected": sep.join(show_want[a1:a2]), "heard": sep.join(show_got[b1:b2]), "at": a1})
     return ops
 
 

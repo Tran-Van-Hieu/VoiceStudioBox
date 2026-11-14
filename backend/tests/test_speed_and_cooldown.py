@@ -122,3 +122,61 @@ def test_history_dates_compare_as_utc_instants():
     # 06:00 on 10 Nov in Vietnam is 23:00 on 9 Nov in UTC, as the database stores it.
     assert _utc("2026-11-09T23:00:00.000Z") == datetime(2026, 11, 9, 23, 0)
     assert _utc("2026-11-10T06:00:00+07:00") == datetime(2026, 11, 9, 23, 0)
+
+
+def test_speed_change_resizes_pauses_and_leaves_speech_untouched():
+    import numpy as np
+
+    from backend.utils.audio_post import change_speed
+
+    sr = 24000
+    t = np.arange(sr) / sr
+    word = (0.3 * np.sin(2 * np.pi * 220 * t)).astype(np.float32)  # 1 s of "speech"
+    gap = np.zeros(sr // 2, dtype=np.float32)
+    x = np.concatenate([word, gap, word, gap, word])
+    for speed in (0.9, 1.15):
+        y = change_speed(x, sr, speed)
+        assert abs(len(y) - len(x) / speed) < sr * 0.03
+        assert np.array_equal(y[: sr - 240], x[: sr - 240])  # first word not stretched
+
+
+def test_long_text_chunks_are_generated_in_batches_in_order(monkeypatch):
+    import asyncio
+
+    import numpy as np
+
+    from backend.utils import chunked_tts
+
+    monkeypatch.setattr(chunked_tts, "batch_size", lambda device: 2)
+
+    class Fake:
+        device = "cuda"
+        batches: list = []
+
+        async def generate(self, *a, **k):
+            raise AssertionError("each chunk should come from a batch")
+
+        async def generate_batch(self, texts, prompt, language, seed, instruct):
+            self.batches.append(list(texts))
+            return [(np.full(2400, float(len(self.batches)), dtype=np.float32), 24000) for _ in texts]
+
+    text = " ".join(f"Sentence number {i} is here." for i in range(9))
+    fake = Fake()
+    audio, sr = asyncio.run(chunked_tts.generate_chunked(fake, text, [object()], max_chunk_chars=60, crossfade_ms=0))
+    assert [len(b) for b in fake.batches] == [2] * (len(fake.batches) - 1) + [len(fake.batches[-1])]
+    assert sum(len(b) for b in fake.batches) * 2400 == len(audio)
+    assert audio[0] == 1.0 and audio[-1] == float(len(fake.batches))  # order kept
+
+
+def test_slowing_down_never_makes_a_pause_the_check_calls_too_long():
+    import numpy as np
+
+    from backend.utils.audio_post import _pause_runs, change_speed
+
+    sr = 24000
+    word = (0.3 * np.sin(2 * np.pi * 220 * np.arange(sr) / sr)).astype(np.float32)
+    gap = np.zeros(int(sr * 0.6), dtype=np.float32)
+    x = np.concatenate([word, gap, word, gap, word])
+    y = change_speed(x, sr, 0.8)
+    assert abs(len(y) - len(x) / 0.8) < sr * 0.05
+    assert max(b - a for a, b in _pause_runs(y, sr)) <= sr * 1.25

@@ -120,14 +120,8 @@ SAMPLE_MAX_FILE_SIZE = 50 * 1024 * 1024  # 50 MB
 SAMPLE_UPLOAD_CHUNK_SIZE = 1024 * 1024  # 1 MB
 
 
-@router.post("/profiles/{profile_id}/samples", response_model=models.ProfileSampleResponse)
-async def add_profile_sample(
-    profile_id: str,
-    file: UploadFile = File(...),
-    reference_text: str = Form(...),
-    db: Session = Depends(get_db),
-):
-    """Add a sample to a voice profile."""
+async def _sample_to_temp(file: UploadFile) -> str:
+    """Stream an uploaded sample to a temp file, enforcing the size limit."""
     _allowed_audio_exts = {".wav", ".mp3", ".m4a", ".ogg", ".flac", ".aac", ".webm", ".opus"}
     _uploaded_ext = Path(file.filename or "").suffix.lower()
     file_suffix = _uploaded_ext if _uploaded_ext in _allowed_audio_exts else ".wav"
@@ -143,14 +137,40 @@ async def add_profile_sample(
                     detail=f"File too large (max {SAMPLE_MAX_FILE_SIZE // (1024 * 1024)} MB)",
                 )
             tmp.write(chunk)
-        tmp_path = tmp.name
+        return tmp.name
 
+
+@router.post("/profiles/samples/check")
+async def check_profile_sample(file: UploadFile = File(...)) -> dict:
+    """Score a sample before it is saved: noise, clipping, level, length, more than one voice."""
+    from ..services import voice_lab
+
+    tmp_path = await _sample_to_temp(file)
+    try:
+        return await voice_lab.check_sample(tmp_path)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not read audio: {e}")
+    finally:
+        Path(tmp_path).unlink(missing_ok=True)
+
+
+@router.post("/profiles/{profile_id}/samples", response_model=models.ProfileSampleResponse)
+async def add_profile_sample(
+    profile_id: str,
+    file: UploadFile = File(...),
+    reference_text: str = Form(...),
+    clean: bool = Form(False),
+    db: Session = Depends(get_db),
+):
+    """Add a sample to a voice profile; *clean* removes background noise first."""
+    tmp_path = await _sample_to_temp(file)
     try:
         sample = await profiles.add_profile_sample(
             profile_id,
             tmp_path,
             reference_text,
             db,
+            clean=clean,
         )
         return sample
     except ValueError as e:

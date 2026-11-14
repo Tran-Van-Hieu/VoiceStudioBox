@@ -58,6 +58,7 @@ import { type ProfileFormDraft, useUIStore } from '@/stores/uiStore';
 import { AudioSampleRecording } from './AudioSampleRecording';
 import { AudioSampleSystem } from './AudioSampleSystem';
 import { AudioSampleUpload } from './AudioSampleUpload';
+import { SampleCheck } from './SampleCheck';
 import { SampleList } from './SampleList';
 
 const MAX_AUDIO_DURATION_SECONDS = 30;
@@ -142,6 +143,7 @@ export function ProfileForm() {
   const createProfile = useCreateProfile();
   const updateProfile = useUpdateProfile();
   const addSample = useAddSample();
+  const [cleanSample, setCleanSample] = useState(false);
   const deleteProfile = useDeleteProfile();
   const uploadAvatar = useUploadAvatar();
   const deleteAvatar = useDeleteAvatar();
@@ -674,6 +676,7 @@ export function ProfileForm() {
             profileId: profile.id,
             file: fileToUpload,
             referenceText: referenceText,
+            clean: cleanSample,
           });
 
           // Handle avatar upload if provided
@@ -1008,6 +1011,12 @@ export function ProfileForm() {
                               </TabsContent>
                             )}
                           </Tabs>
+
+                          <SampleCheck
+                            file={selectedFile}
+                            clean={cleanSample}
+                            onCleanChange={setCleanSample}
+                          />
 
                           <FormField
                             control={form.control}

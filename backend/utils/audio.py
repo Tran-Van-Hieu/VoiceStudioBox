@@ -33,14 +33,12 @@ def normalize_audio(
     # Calculate target RMS
     target_rms = 10**(target_db / 20)
     
-    # Apply gain
-    if rms > 0:
-        gain = target_rms / rms
-        audio = audio * gain
-    
-    # Peak limiting
-    audio = np.clip(audio, -peak_limit, peak_limit)
-    
+    # One gain for the whole clip, capped so the loudest peak lands on peak_limit.
+    # Clipping peaks instead flattened every loud syllable into audible crackle.
+    peak = float(np.max(np.abs(audio))) if len(audio) else 0.0
+    if rms > 0 and peak > 0:
+        audio = audio * min(target_rms / rms, peak_limit / peak)
+
     return audio
 
 

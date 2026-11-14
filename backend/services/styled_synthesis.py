@@ -38,6 +38,12 @@ OMNIVOICE_MAX_CHUNK_CHARS = 240
 # ~20 s chunks restart from the reference before the drift is audible.
 QWEN_MAX_CHUNK_CHARS = 300
 
+# Chunk limits count characters of Latin-script text (~15 per second spoken).
+# Japanese and Chinese speak ~6 per second, so Qwen got 45 s chunks; at 0.4x
+# Japanese took 91 s instead of 114 s at the same quality. OmniVoice gained
+# nothing, and VoiceDesign changed voice at every extra chunk, so only Qwen.
+DENSE_SCRIPT_CHUNK_SCALE = {"ja": 0.4, "zh": 0.4}
+
 ENGINE_MAX_CHUNK_CHARS = {
     "omnivoice": OMNIVOICE_MAX_CHUNK_CHARS,
     "qwen": QWEN_MAX_CHUNK_CHARS,
@@ -124,6 +130,8 @@ async def synthesize_styled(
         kwargs["max_chunk_chars"] = max_chunk_chars
     if engine in ENGINE_MAX_CHUNK_CHARS:
         kwargs["max_chunk_chars"] = min(kwargs.get("max_chunk_chars", 800), ENGINE_MAX_CHUNK_CHARS[engine])
+    if engine == "qwen" and language in DENSE_SCRIPT_CHUNK_SCALE and "max_chunk_chars" in kwargs:
+        kwargs["max_chunk_chars"] = int(kwargs["max_chunk_chars"] * DENSE_SCRIPT_CHUNK_SCALE[language])
 
     parts: list[np.ndarray] = []
     span_segments: list[list[dict]] = []

@@ -144,15 +144,37 @@ class ApiClient {
     });
   }
 
+  /** Quality report for a sample before it is saved (noise, clipping, level, length). */
+  async checkProfileSample(file: File): Promise<{
+    duration: number;
+    score: number;
+    issues: string[];
+    snr_db: number;
+  }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${this.getBaseUrl()}/profiles/samples/check`, {
+      method: 'POST',
+      body: formData,
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new Error(formatErrorDetail(error.detail, `HTTP error! status: ${response.status}`));
+    }
+    return response.json();
+  }
+
   async addProfileSample(
     profileId: string,
     file: File,
     referenceText: string,
+    clean = false,
   ): Promise<ProfileSampleResponse> {
     const url = `${this.getBaseUrl()}/profiles/${profileId}/samples`;
     const formData = new FormData();
     formData.append('file', file);
     formData.append('reference_text', referenceText);
+    formData.append('clean', String(clean));
 
     const response = await fetch(url, {
       method: 'POST',

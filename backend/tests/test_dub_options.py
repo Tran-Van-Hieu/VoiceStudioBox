@@ -117,3 +117,14 @@ def test_speakers_start_on_the_library_voice_chosen_for_the_dub(tmp_path):
     project = {"profile_id": "voice-1", "segments": []}
     dubbing._diarize(project, tmp_path)
     assert project["speakers"] == {"S1": {"label": "Người nói 1", "mode": "profile", "profile_id": "voice-1"}}
+
+
+def test_japanese_transcript_is_scored_by_character_not_as_one_word():
+    from backend.services.speech_qc import score_transcript, word_diff
+
+    expected = "店の奥の棚には、四十年前に開店したときの写真が飾られている。"
+    heard = "店の奥の棚には40年前に開店した時の写真が飾られている"
+    score, _ = score_transcript(expected, heard, "ja")
+    assert score > 0.85  # 40 is spelled as 四十; only とき/時 differs
+    diff = word_diff(expected, heard, "ja")
+    assert diff and all(len(d["expected"]) <= 2 for d in diff)

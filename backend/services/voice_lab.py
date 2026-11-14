@@ -27,7 +27,9 @@ _OMNIVOICE_MAX_REFERENCE = 20.0
 _PEAK_POINTS = 1200
 _RATE = 44100
 _MUSIC_RATIO_DB = -22.0
-_NOISY_SNR_DB = 32.0
+# Clean voices measured 41-77 dB; samples at 33 dB (noise floor -45 dB) gave
+# clones an audible hiss, and cleaning them cost nothing measurable.
+_NOISY_SNR_DB = 40.0
 _AUTO_DENOISE_STRENGTH = 0.7
 _AUDITION_SEEDS = (11, 23, 37)
 _MIN_AUDITION_SCORE = 0.7
@@ -115,6 +117,23 @@ def _analysis(x: np.ndarray, rate: int, music: bool) -> dict:
         "clip_ratio": round(m["clip_ratio"], 4),
         "speaker_consistency": None if purity is None else round(purity, 2),
     }
+
+
+async def check_sample(path: str) -> dict:
+    """Quality report for a sample about to be added to a voice (see _analysis)."""
+    from ..utils.audio import load_audio
+
+    audio, rate = await asyncio.to_thread(load_audio, path, 24000)
+    return await asyncio.to_thread(_analysis, np.asarray(audio, dtype=np.float32), rate, False)
+
+
+async def clean_sample(audio: np.ndarray, rate: int) -> np.ndarray:
+    """The sample with background noise removed, queued like any GPU job."""
+
+    async def work() -> np.ndarray:
+        return await asyncio.to_thread(audio_clean.denoise, audio, rate, _AUTO_DENOISE_STRENGTH)
+
+    return await run_exclusive(f"clean-sample-{uuid.uuid4().hex[:8]}", work)
 
 
 def pick_reference(samples: list) -> tuple[str, str]:

@@ -224,9 +224,10 @@ async def add_profile_sample(
     audio_path: str,
     reference_text: str,
     db: Session,
+    clean: bool = False,
 ) -> ProfileSampleResponse:
     """
-    Add a sample to a voice profile.
+    Add a sample to a voice profile. *clean* removes background noise first.
 
     Args:
         profile_id: Profile ID
@@ -249,6 +250,10 @@ async def add_profile_sample(
     )
     if not is_valid:
         raise ValueError(f"Invalid reference audio: {error_msg}")
+    if clean:
+        from . import voice_lab
+
+        audio = await voice_lab.clean_sample(audio, sr)
 
     sample_id = str(uuid.uuid4())
     profile_dir = config.get_profiles_dir() / profile_id

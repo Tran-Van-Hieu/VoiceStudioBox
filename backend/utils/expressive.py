@@ -142,7 +142,11 @@ def prosody_factor(engine: str, has_emotion_sample: bool) -> float:
 def apply_prosody(
     audio: np.ndarray, sample_rate: int, emotion: str, intensity: float, factor: float
 ) -> np.ndarray:
-    """Apply the emotion's tempo, pitch and level, scaled by intensity × factor."""
+    """Apply the emotion's tempo and level, scaled by intensity × factor.
+
+    ``spec.pitch`` is deliberately not applied: shifting a finished take by half
+    a semitone dropped its naturalness score from 4.2 to 3.0 (robotic).
+    """
     emotion = normalize_emotion(emotion)
     k = max(0.0, min(1.0, intensity)) * factor
     if emotion == NEUTRAL or k <= 0 or len(audio) == 0:
@@ -151,15 +155,12 @@ def apply_prosody(
 
     spec = EMOTIONS[emotion]
     x = np.asarray(audio, dtype=np.float32)
-    semitones = spec.pitch * k
-    if abs(semitones) >= 0.05:
-        from pedalboard import Pedalboard, PitchShift
-
-        x = Pedalboard([PitchShift(semitones=float(semitones))])(x, float(sample_rate))
-        x = np.asarray(x, dtype=np.float32).reshape(-1)
     x = change_speed(x, sample_rate, 1.0 + (spec.speed - 1.0) * k)
     x = x * (10 ** (spec.gain_db * k / 20))
-    return np.clip(x, -1.0, 1.0).astype(np.float32)
+    peak = float(np.max(np.abs(x))) if len(x) else 0.0
+    if peak > 0.99:  # scale, never clip: clipped peaks crackle
+        x = x * (0.99 / peak)
+    return x.astype(np.float32)
 
 
 @dataclass

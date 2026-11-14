@@ -1,4 +1,12 @@
 {
+  "sampleCheck": {
+    "title": "Kiểm tra mẫu",
+    "checking": "Đang kiểm tra mẫu...",
+    "score": "Điểm {{score}}/100",
+    "stillAllowed": "Mẫu kém thì giọng clone sẽ chép cả lỗi này. Vẫn có thể dùng mẫu.",
+    "clean": "Làm sạch mẫu (lọc tạp âm nền)",
+    "cleanHint": "Tự bật khi mẫu ồn. Đã đo: mẫu ồn làm giọng clone chép cả tiếng xì; làm sạch đưa giọng về như mẫu sạch, và gần như không ảnh hưởng mẫu vốn đã sạch."
+  },
   "common": {
     "cancel": "Hủy",
     "save": "Lưu",
