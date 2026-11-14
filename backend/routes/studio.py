@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import io
+import json
 import tempfile
 import zipfile
 from pathlib import Path
@@ -442,10 +443,27 @@ async def dub_create(
     speaker_count: int = Form(0),
     glossary: str = Form(""),
     original_volume: float = Form(0.0),
+    music_volume: float = Form(1.0),
     llm_size: str = Form("4B"),
+    voice_match: str = Form("speaker"),
+    subtitle: str = Form("{}"),
+    srt: Optional[UploadFile] = File(None),
+    srt_role: str = Form("source"),
 ) -> list[dict[str, Any]]:
-    if mode not in ("dub", "transcribe"):
+    if mode not in ("dub", "transcribe") or voice_match not in ("speaker", "line") or srt_role not in ("source", "target"):
         raise HTTPException(status_code=400, detail="Invalid mode")
+    cues = None
+    if srt is not None and srt.filename:
+        if len(files) > 1:
+            raise HTTPException(status_code=400, detail="File SRT chỉ dùng được khi lồng tiếng một video.")
+        try:
+            cues = dubbing.parse_srt((await srt.read()).decode("utf-8-sig", errors="replace"))
+        except ValueError as e:
+            raise _bad_request(e)
+    try:
+        style = dubbing.clean_subtitle(json.loads(subtitle or "{}"))
+    except (ValueError, TypeError) as e:
+        raise _bad_request(e)
     created = []
     for file in files:
         upload = await _store_upload(file)
@@ -461,8 +479,13 @@ async def dub_create(
                 "auto_continue": auto_continue,
                 "speaker_count": speaker_count,
                 "glossary": glossary,
-                "original_volume": original_volume,
+                "original_volume": max(0.0, min(1.0, original_volume)),
+                "music_volume": max(0.0, min(1.0, music_volume)),
                 "llm_size": llm_size,
+                "voice_match": voice_match,
+                "subtitle": style,
+                "srt_cues": cues,
+                "srt_role": srt_role,
             },
         )
         dubbing.start(project["id"])

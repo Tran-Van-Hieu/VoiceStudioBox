@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   CheckCircle2,
   Download,
+  FileText,
   FileVideo,
   Languages,
   Loader2,
@@ -24,7 +25,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
-import { type DubProject, type DubSegment, studioApi } from '@/lib/api/studio';
+import { type DubOutput, type DubProject, type DubSegment, studioApi } from '@/lib/api/studio';
 import { cn } from '@/lib/utils/cn';
 import {
   ErrorNote,
@@ -37,10 +38,10 @@ import {
   Panel,
   parseEngine,
   QualityBadge,
-  SliderField,
   useSaveBlob,
   VoicePicker,
 } from './common';
+import { DUB_OUTPUT_DEFAULTS, DubOutputSettings, dubOutputOf } from './DubOutputSettings';
 
 const ACTIVE = new Set([
   'queued',
@@ -67,10 +68,14 @@ function NewDub({ onCreated }: { onCreated: (id: string) => void }) {
   const [speakers, setSpeakers] = useState('0');
   const [translator, setTranslator] = useState('4B');
   const [glossary, setGlossary] = useState('');
-  const [original, setOriginal] = useState(0);
+  const [output, setOutput] = useState<DubOutput>(DUB_OUTPUT_DEFAULTS);
+  const srtInput = useRef<HTMLInputElement>(null);
+  const [srt, setSrt] = useState<File | null>(null);
+  const [srtRole, setSrtRole] = useState<'source' | 'target'>('source');
   const parsed = parseEngine(model ?? '');
   const canRun =
     files.length > 0 &&
+    !(srt && files.length > 1) &&
     (mode === 'transcribe' || (!!model && engineSupports(parsed.engine, target)));
 
   const create = useMutation({
@@ -85,7 +90,14 @@ function NewDub({ onCreated }: { onCreated: (id: string) => void }) {
       form.append('auto_continue', String(autoRun));
       form.append('speaker_count', speakers);
       form.append('glossary', glossary);
-      form.append('original_volume', String(original / 100));
+      form.append('original_volume', String(output.original_volume));
+      form.append('music_volume', String(output.music_volume));
+      form.append('voice_match', output.voice_match);
+      form.append('subtitle', JSON.stringify(output.subtitle));
+      if (srt) {
+        form.append('srt', srt);
+        form.append('srt_role', srtRole);
+      }
       form.append('llm_size', translator);
       return studioApi.createDubs(form);
     },
@@ -174,15 +186,6 @@ function NewDub({ onCreated }: { onCreated: (id: string) => void }) {
                 </SelectContent>
               </Select>
             </Field>
-            <SliderField
-              label={t('studio.dub.originalVolume')}
-              value={original}
-              min={0}
-              max={100}
-              step={5}
-              format={(v) => (v ? `${v}%` : t('studio.dub.replaceFully'))}
-              onChange={setOriginal}
-            />
           </>
         )}
         <Field label={t('studio.dub.speakers')}>
@@ -195,8 +198,48 @@ function NewDub({ onCreated }: { onCreated: (id: string) => void }) {
           />
         </Field>
       </div>
+      <Field label={t('studio.dub.out.srt')} hint={t('studio.dub.out.srtHint')}>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={files.length > 1}
+            onClick={() => srtInput.current?.click()}
+          >
+            <FileText className="h-3.5 w-3.5 mr-1.5" />
+            {srt ? srt.name : t('studio.dub.out.srtPick')}
+          </Button>
+          {srt && (
+            <Button size="sm" variant="ghost" onClick={() => setSrt(null)}>
+              {t('studio.dub.out.srtClear')}
+            </Button>
+          )}
+          {srt && mode === 'dub' && (
+            <Select value={srtRole} onValueChange={(v) => setSrtRole(v as 'source' | 'target')}>
+              <SelectTrigger className="h-8 w-auto min-w-[220px] text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="source">{t('studio.dub.out.srtSource')}</SelectItem>
+                <SelectItem value="target">{t('studio.dub.out.srtTarget')}</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        </div>
+        <input
+          ref={srtInput}
+          type="file"
+          accept=".srt"
+          className="hidden"
+          onChange={(e) => {
+            setSrt(e.target.files?.[0] ?? null);
+            e.target.value = '';
+          }}
+        />
+      </Field>
       {mode === 'dub' && (
         <>
+          <DubOutputSettings value={output} onChange={setOutput} />
           <Field label={t('studio.dub.glossary')} hint={t('studio.dub.glossaryHint')}>
             <Textarea value={glossary} onChange={(e) => setGlossary(e.target.value)} rows={2} />
           </Field>
@@ -249,7 +292,14 @@ function ReviewRow({
           ))}
         </SelectContent>
       </Select>
-      <p className="text-xs text-muted-foreground pt-1.5">{segment.text}</p>
+      <p className="text-xs text-muted-foreground pt-1.5">
+        {segment.text}
+        {segment.reference && (
+          <span className="ml-1.5 rounded bg-muted px-1 py-0.5 text-[10px]">
+            {t(segment.reference === 'line' ? 'studio.dub.out.refLine' : 'studio.dub.out.refSpeaker')}
+          </span>
+        )}
+      </p>
       <Textarea
         rows={2}
         value={segment.translation}
@@ -277,6 +327,11 @@ function DubDetail({ id, onDeleted }: { id: string; onDeleted: () => void }) {
   });
   const [edits, setEdits] = useState<Record<string, Partial<DubSegment>>>({});
   useEffect(() => setEdits({}), [id]);
+  // Output settings are edited here and sent with Approve / Apply.
+  const [output, setOutput] = useState<DubOutput | null>(null);
+  const loaded = !!project;
+  // biome-ignore lint/correctness/useExhaustiveDependencies: reseed only when another dub opens
+  useEffect(() => setOutput(project ? dubOutputOf(project) : null), [id, loaded]);
   const handleError = (e: Error) => toast({ title: e.message, variant: 'destructive' });
   const refresh = (p?: DubProject) => {
     if (p) client.setQueryData(key, p);
@@ -290,7 +345,7 @@ function DubDetail({ id, onDeleted }: { id: string; onDeleted: () => void }) {
         id: segmentId,
         ...patch,
       }));
-      await studioApi.updateDub(id, { segments, approved: true });
+      await studioApi.updateDub(id, { segments, approved: true, ...output });
       setEdits({});
       return studioApi.runDub(id);
     },
@@ -437,6 +492,13 @@ function DubDetail({ id, onDeleted }: { id: string; onDeleted: () => void }) {
               </div>
             );
           })}
+        </Panel>
+      )}
+
+      {canReview && output && (
+        <Panel title={t('studio.dub.out.title')}>
+          <DubOutputSettings value={output} onChange={setOutput} />
+          <p className="text-xs text-muted-foreground">{t('studio.dub.out.applyHint')}</p>
         </Panel>
       )}
 

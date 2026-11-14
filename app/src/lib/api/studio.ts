@@ -233,6 +233,29 @@ export interface DubSegment {
   warning?: 'empty' | 'untranslated' | 'numbers' | null;
   score?: number;
   error?: string;
+  /** Which voice reference read this line: its own source audio or the speaker's. */
+  reference?: 'line' | 'speaker';
+}
+
+export interface DubSubtitle {
+  burn: boolean;
+  which: 'target' | 'source';
+  font: string;
+  size: number;
+  color: string;
+  outline_color: string;
+  outline: number;
+  bold: boolean;
+  position: 'bottom' | 'middle' | 'top';
+  margin: number;
+}
+
+/** Settings that change how a dub sounds and looks, editable before and after it runs. */
+export interface DubOutput {
+  voice_match: 'speaker' | 'line';
+  original_volume: number;
+  music_volume: number;
+  subtitle: DubSubtitle;
 }
 
 export interface DubSpeaker {
@@ -265,6 +288,11 @@ export interface DubProject {
   segments: DubSegment[];
   speakers: Record<string, DubSpeaker>;
   qc: { level: QualityLevel; problems: DubProblem[] } | null;
+  voice_match?: DubOutput['voice_match'];
+  original_volume?: number;
+  music_volume?: number;
+  subtitle?: DubSubtitle;
+  srt_role?: 'source' | 'target';
 }
 
 export type DubSummary = Pick<

@@ -318,6 +318,7 @@ async def generate_audio_sync(
     normalize: bool = True,
     max_chunk_chars: Optional[int] = None,
     crossfade_ms: Optional[int] = None,
+    reference: Optional[tuple[str, str]] = None,
 ) -> bytes:
     """Run a TTS generation synchronously and return the resulting wav bytes.
 
@@ -340,7 +341,7 @@ async def generate_audio_sync(
     from ..utils.audio import has_tts_runaway, normalize_audio, trim_tts_output
     from ..utils.audio_post import apply_output_processing
     from . import tts, vram
-    from .styled_synthesis import resolve_prompts, synthesize_styled
+    from .styled_synthesis import NEUTRAL, ResolvedPrompts, resolve_prompts, synthesize_styled
 
     bg_db = next(get_db())
     tts_model = None
@@ -353,7 +354,12 @@ async def generate_audio_sync(
         await load_engine_model(engine, model_size)
         abort.guard(tts_model)
 
-        resolved = await resolve_prompts(profile_id, bg_db, engine, text, None)
+        if reference is not None:
+            # (audio path, its transcript): clone from this clip instead of the profile.
+            prompt, _ = await tts_model.create_voice_prompt(reference[0], reference[1], use_cache=False)
+            resolved = ResolvedPrompts({NEUTRAL: prompt}, {NEUTRAL: True}, {NEUTRAL: [reference[0]]})
+        else:
+            resolved = await resolve_prompts(profile_id, bg_db, engine, text, None)
     except BaseException:
         vram_ctx.__exit__(None, None, None)
         raise

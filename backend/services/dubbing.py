@@ -51,6 +51,29 @@ _REPLACE_RAMP = 0.04
 _CLONE_SECONDS = 8.0
 _CLONE_MIN_SECONDS = 3.0
 _CLONE_MAX_SECONDS = 15.0
+# Per-line voice match: a line shorter than this, longer than the last, or whose
+# voice is not clearly louder than the music behind it, uses the speaker's reference.
+_LINE_REF_MIN = 2.0
+_LINE_REF_MAX = 30.0
+_LINE_REF_SNR = 2.0  # vocals RMS over background RMS, about 6 dB
+
+SUBTITLE_DEFAULTS: dict[str, Any] = {
+    "burn": False,
+    "which": "target",  # target | source
+    "font": "Arial",
+    "size": 18,  # libass units: the frame is 288 tall, so 18 is about 6% of the height
+    "color": "#FFFFFF",
+    "outline_color": "#000000",
+    "outline": 2.0,
+    "bold": False,
+    "position": "bottom",  # bottom | middle | top
+    "margin": 20,
+}
+# Legacy SSA codes: ffmpeg's force_style reads these, not the numpad ones.
+_ALIGN = {"bottom": 2, "middle": 10, "top": 6}
+_HEX = re.compile(r"^#[0-9A-Fa-f]{6}$")
+_SRT_TIME = re.compile(r"(\d+):(\d{2}):(\d{2})[,.](\d{1,3})\s*-->\s*(\d+):(\d{2}):(\d{2})[,.](\d{1,3})")
+_SRT_SPEAKER = re.compile(r"^\s*(?:\[([^\]\d]{1,30})\]|([^\W\d_](?:[^\W\d_]|[ .'-]){0,24}?)\s*[:：])\s*(.+)$")
 
 LANGUAGE_NAMES = {
     "vi": "Vietnamese", "en": "English", "zh": "Chinese", "ja": "Japanese", "ko": "Korean",
@@ -136,6 +159,56 @@ def recover_interrupted() -> None:
             continue
 
 
+def parse_srt(text: str) -> list[dict]:
+    """Cues of an SRT file as {start, end, text, speaker}.
+
+    A speaker is read from "[Name] …" or "Name: …", but only when at least half
+    the cues carry one, so a stray "Note: …" is not taken for a person.
+    """
+    cues: list[dict] = []
+    clean = text.replace("﻿", "").replace("\r\n", "\n").replace("\r", "\n").strip()
+    for block in re.split(r"\n\s*\n", clean):
+        lines = block.strip().split("\n")
+        for j, line in enumerate(lines):
+            m = _SRT_TIME.search(line)
+            if not m:
+                continue
+            g = m.groups()
+            start = int(g[0]) * 3600 + int(g[1]) * 60 + int(g[2]) + int(g[3].ljust(3, "0")) / 1000
+            end = int(g[4]) * 3600 + int(g[5]) * 60 + int(g[6]) + int(g[7].ljust(3, "0")) / 1000
+            body = " ".join(x.strip() for x in lines[j + 1 :] if x.strip())
+            body = re.sub(r"<[^>]+>|\{\\[^}]*\}", "", body).strip()
+            if body and end > start:
+                cues.append({"start": round(start, 3), "end": round(end, 3), "text": body, "speaker": None})
+            break
+    if not cues:
+        raise ValueError("File SRT không có dòng phụ đề nào đọc được.")
+    matches = [_SRT_SPEAKER.match(c["text"]) for c in cues]
+    if sum(1 for m in matches if m) * 2 >= len(cues):
+        for cue, m in zip(cues, matches):
+            if m:
+                cue["speaker"] = (m.group(1) or m.group(2)).strip()
+                cue["text"] = m.group(3).strip()
+    return sorted(cues, key=lambda c: c["start"])
+
+
+def clean_subtitle(value: Any) -> dict[str, Any]:
+    """Burned-in subtitle style with every field checked: it ends up inside an ffmpeg filter."""
+    v = {**SUBTITLE_DEFAULTS, **(value if isinstance(value, dict) else {})}
+    return {
+        "burn": bool(v["burn"]),
+        "which": v["which"] if v["which"] in ("target", "source") else "target",
+        "font": re.sub(r"[^\w \-]", "", str(v["font"]))[:60].strip() or "Arial",
+        "size": max(6, min(96, int(float(v["size"])))),
+        "color": str(v["color"]) if _HEX.match(str(v["color"])) else "#FFFFFF",
+        "outline_color": str(v["outline_color"]) if _HEX.match(str(v["outline_color"])) else "#000000",
+        "outline": round(max(0.0, min(8.0, float(v["outline"]))), 1),
+        "bold": bool(v["bold"]),
+        "position": v["position"] if v["position"] in _ALIGN else "bottom",
+        "margin": max(0, min(300, int(float(v["margin"])))),
+    }
+
+
 def create(upload: Path, filename: str, options: dict[str, Any]) -> dict:
     project_id = uuid.uuid4().hex
     folder = _folder(project_id)
@@ -215,8 +288,11 @@ def _utterances(vocals: np.ndarray, rate: int) -> list[tuple[float, float]]:
 
 
 async def _transcribe_all(project: dict, folder: Path) -> None:
+    """Split the speech into lines: by an imported SRT when there is one, else by pauses."""
     vocals, rate = sf.read(str(folder / "stems" / "vocals.wav"), dtype="float32")
-    spans = _utterances(vocals, rate)
+    cues: list[dict] = project.get("srt_cues") or []
+    role = project.get("srt_role") or "source"
+    spans = [(c["start"], c["end"]) for c in cues] or _utterances(vocals, rate)
     if not spans:
         raise RuntimeError("Không nghe thấy lời nói trong file này.")
     model_size = extras.get("qc_whisper_model")
@@ -228,35 +304,53 @@ async def _transcribe_all(project: dict, folder: Path) -> None:
         if not language:
             language = await voice_lab.detect_language(folder / "stems" / "vocals.wav", model_size)
             project["source_language"] = language
-        whisper = transcribe.get_whisper_model()
+        # An SRT in the source language already holds the words; one in the
+        # target language holds the translation, and Whisper still writes the source.
+        whisper = transcribe.get_whisper_model() if not cues or role == "target" else None
         segments = []
         for i, (start, end) in enumerate(spans):
             if project["id"] in _cancelled:
                 raise _Stopped()
-            fd, name = tempfile.mkstemp(suffix=".wav")
-            import os
+            cue = cues[i] if cues else None
+            if whisper is None:
+                text = cue["text"]
+            else:
+                fd, name = tempfile.mkstemp(suffix=".wav")
+                import os
 
-            os.close(fd)
-            try:
-                sf.write(name, mono[int(start * rate) : int(end * rate)], rate, subtype="FLOAT")
-                text = (await whisper.transcribe(name, language=language, model_size=model_size)).strip()
-            finally:
-                Path(name).unlink(missing_ok=True)
-            if text and not _HALLUCINATIONS.search(text):
+                os.close(fd)
+                try:
+                    sf.write(name, mono[int(start * rate) : int(end * rate)], rate, subtype="FLOAT")
+                    text = (await whisper.transcribe(name, language=language, model_size=model_size)).strip()
+                finally:
+                    Path(name).unlink(missing_ok=True)
+                if _HALLUCINATIONS.search(text):
+                    text = ""
+            if text or cue is not None:
                 segments.append(
                     {
                         "id": f"s{i:05d}",
                         "start": round(start, 3),
                         "end": round(end, 3),
-                        "speaker": "S1",
+                        "speaker": (cue or {}).get("speaker") or "S1",
                         "text": text,
-                        "translation": "",
+                        "translation": cue["text"] if cue is not None and role == "target" else "",
                         "status": "pending",
                         "fit": None,
                         "overflow": False,
                     }
                 )
             project["progress"] = round(0.2 + 0.15 * (i + 1) / len(spans), 3)
+        if any(c.get("speaker") for c in cues):
+            # Names from the SRT replace speaker detection.
+            names = list(dict.fromkeys(s["speaker"] for s in segments))
+            keys = {name: f"S{n + 1}" for n, name in enumerate(names)}
+            for segment in segments:
+                segment["speaker"] = keys[segment["speaker"]]
+            project["speakers"] = {
+                keys[name]: {"label": name, "mode": "clone", "profile_id": None} for name in names
+            }
+            project["speakers_from_srt"] = True
         project["segments"] = segments
         save(project)
 
@@ -515,6 +609,33 @@ async def _ensure_voices(project: dict, folder: Path, db) -> None:
     save(project)
 
 
+def _line_reference(folder: Path, segment: dict) -> Optional[Path]:
+    """The line's own source audio as its voice reference, or None when it is
+    too short, too long or too buried under the music to clone from."""
+    length = segment["end"] - segment["start"]
+    if not (_LINE_REF_MIN <= length <= _LINE_REF_MAX) or not segment.get("text", "").strip():
+        return None
+    path = folder / "refs" / f"{segment['id']}.wav"
+    if path.is_file():
+        return path
+    stems = folder / "stems"
+    rate = sf.info(str(stems / "vocals.wav")).samplerate
+    a, b = int(segment["start"] * rate), int(segment["end"] * rate)
+    voice = sf.read(str(stems / "vocals.wav"), start=a, stop=b, dtype="float32", always_2d=True)[0].mean(axis=1)
+    music = sf.read(str(stems / "background.wav"), start=a, stop=b, dtype="float32", always_2d=True)[0].mean(axis=1)
+
+    def rms(x: np.ndarray) -> float:
+        return float(np.sqrt(np.mean(np.square(x)))) if len(x) else 0.0
+
+    if rms(voice) < 1e-4 or rms(voice) < _LINE_REF_SNR * rms(music):
+        return None
+    clip = audio_clean.denoise(voice, rate, 0.5)
+    peak = float(np.max(np.abs(clip)))
+    path.parent.mkdir(exist_ok=True)
+    sf.write(str(path), clip * (0.89 / peak) if peak > 0.89 else clip, rate, subtype="PCM_16")
+    return path
+
+
 async def _synthesize(project: dict, folder: Path) -> None:
     from .generation import generate_audio_sync
 
@@ -522,18 +643,27 @@ async def _synthesize(project: dict, folder: Path) -> None:
     clips.mkdir(exist_ok=True)
     todo = [s for s in project["segments"] if s["translation"].strip() and not (clips / f"{s['id']}.wav").is_file()]
 
+    engine = project.get("engine") or "omnivoice"
+
     async def one(segment: dict) -> None:
-        profile_id = project["speakers"][segment["speaker"]]["profile_id"]
+        voice = project["speakers"][segment["speaker"]]
+        reference = None
+        if project.get("voice_match") == "line" and voice["mode"] == "clone" and engine in ("qwen", "omnivoice"):
+            path = await asyncio.to_thread(_line_reference, folder, segment)
+            if path is not None:
+                reference = (str(path), segment["text"])
         wav = await generate_audio_sync(
-            profile_id=profile_id,
+            profile_id=voice["profile_id"],
             text=segment["translation"],
             language=project["target_language"],
-            engine=project.get("engine") or "omnivoice",
+            engine=engine,
             model_size=project.get("model_size") or "1.7B",
             seed=project.get("seed"),
+            reference=reference,
         )
         (clips / f"{segment['id']}.wav").write_bytes(wav)
-        segment["status"] = "done"
+        segment.update(status="done", reference="line" if reference else "speaker")
+        segment.pop("score", None)
 
     for i, segment in enumerate(todo):
         if project["id"] in _cancelled:
@@ -628,8 +758,10 @@ def _mix(project: dict, folder: Path, total: float) -> tuple[np.ndarray, np.ndar
 
     width = max(1, int(_MIX_RATE * _REPLACE_RAMP))
     mask = np.convolve(replaced, np.ones(width, dtype=np.float32) / width, mode="same")[:, None]
+    # Under a dubbed line the original voice and the music each drop to their own level.
     keep = float(project.get("original_volume") or 0.0)
-    mix = original * (1 - mask) + (background + vocals * keep) * mask + voices[:, None]
+    music = float(project.get("music_volume", 1.0))
+    mix = original * (1 - mask) + (background * music + vocals * keep) * mask + voices[:, None]
 
     peak = float(np.max(np.abs(mix)))
     if peak > 0.97:
@@ -637,12 +769,46 @@ def _mix(project: dict, folder: Path, total: float) -> tuple[np.ndarray, np.ndar
     return np.stack([voices, voices], axis=1), mix.astype(np.float32)
 
 
-def _mux(source: Path, audio: Path, output: Path) -> None:
+def _ass_colour(value: str) -> str:
+    return f"&H00{value[5:7]}{value[3:5]}{value[1:3]}".upper()
+
+
+def _subtitle_filter(project: dict, folder: Path) -> Optional[str]:
+    """The ffmpeg filter that burns the subtitles in, or None when they stay off."""
+    style = clean_subtitle(project.get("subtitle"))
+    if not style["burn"]:
+        return None
+    (folder / "burn.srt").write_text(subtitles(project, style["which"], "srt"), encoding="utf-8")
+    force = ",".join(
+        [
+            f"FontName={style['font']}",
+            f"FontSize={style['size']}",
+            f"PrimaryColour={_ass_colour(style['color'])}",
+            f"OutlineColour={_ass_colour(style['outline_color'])}",
+            "BorderStyle=1",
+            f"Outline={style['outline']}",
+            "Shadow=0",
+            f"Bold={-1 if style['bold'] else 0}",
+            f"Alignment={_ALIGN[style['position']]}",
+            f"MarginV={style['margin']}",
+        ]
+    )
+    # Run from the project folder: a Windows path inside a filter needs escaping.
+    return f"subtitles=burn.srt:force_style='{force}'"
+
+
+def _mux(source: Path, audio: Path, output: Path, subtitle_filter: Optional[str] = None) -> None:
     from ..utils import ffmpeg
 
     missing = "Cần cài ffmpeg để xuất video."
     base = ["-loglevel", "error", "-y", "-i", str(source), "-i", str(audio), "-map", "0:v:0", "-map", "1:a:0"]
     tail = ["-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(output)]
+    if subtitle_filter:
+        encode = ["-vf", subtitle_filter, "-c:v", "libx264", "-crf", "18", "-preset", "medium"]
+        result = ffmpeg.run(base + encode + tail, missing, cwd=str(output.parent))
+        if result.returncode != 0:
+            raise RuntimeError("Không gắn được phụ đề: " + result.stderr.decode(errors="replace")[-300:])
+        return
     result = ffmpeg.run(base + ["-c:v", "copy"] + tail, missing)
     if result.returncode != 0:
         # The source codec does not fit in MP4; re-encode the picture.
@@ -667,9 +833,12 @@ async def _check_dub(project: dict, folder: Path) -> None:
             if not segment["translation"].strip() or not path.is_file():
                 problems.append({"id": segment["id"], "kind": "missing", "severity": "red"})
                 continue
-            heard = await whisper.transcribe(str(path), language=project["target_language"], model_size=whisper_model)
-            score, _ = speech_qc.score_transcript(segment["translation"], heard, project["target_language"])
-            segment["score"] = round(score, 2)
+            if "score" in segment:  # this clip was already heard on an earlier run
+                score, heard = segment["score"], segment.get("heard", "")
+            else:
+                heard = await whisper.transcribe(str(path), language=project["target_language"], model_size=whisper_model)
+                score, _ = speech_qc.score_transcript(segment["translation"], heard, project["target_language"])
+                segment.update(score=round(score, 2), heard=heard)
             if score < 0.85:
                 problems.append(
                     {"id": segment["id"], "kind": "words", "severity": "red" if score < 0.6 else "yellow", "value": round(score, 2), "heard": heard}
@@ -752,7 +921,8 @@ async def _pipeline(project: dict, project_id: str, folder: Path) -> None:
         _update(project, "transcribing", 0.2)
         await _transcribe_all(project, folder)
         _update(project, "speakers", 0.36)
-        await asyncio.to_thread(_diarize, project, folder)
+        if not project.get("speakers_from_srt"):
+            await asyncio.to_thread(_diarize, project, folder)
         save(project)
     if project.get("mode") == "transcribe":
         _update(project, "done", 1.0)
@@ -787,7 +957,8 @@ async def _pipeline(project: dict, project_id: str, folder: Path) -> None:
     sf.write(str(folder / "voices.wav"), voices, _MIX_RATE, subtype="PCM_16")
     sf.write(str(folder / "dub.wav"), mix, _MIX_RATE, subtype="PCM_16")
     if project.get("has_video"):
-        await asyncio.to_thread(_mux, folder / project["source"], folder / "dub.wav", folder / "dub.mp4")
+        burn = _subtitle_filter(project, folder)
+        await asyncio.to_thread(_mux, folder / project["source"], folder / "dub.wav", folder / "dub.mp4", burn)
     _update(project, "mixing", 0.94)
     await _check_dub(project, folder)
     _update(project, "done", 1.0)
@@ -842,6 +1013,7 @@ def update(project_id: str, patch: dict[str, Any]) -> dict:
                     (clips / f"{segment['id']}.wav").unlink(missing_ok=True)
                     segment["shortened"] = False
                     segment["status"] = "pending"
+                    segment.pop("score", None)
     for name, voice in (patch.get("speakers") or {}).items():
         if name in project["speakers"]:
             before = project["speakers"][name].get("profile_id")
@@ -851,9 +1023,24 @@ def update(project_id: str, patch: dict[str, Any]) -> dict:
                     if s["speaker"] == name:
                         (clips / f"{s['id']}.wav").unlink(missing_ok=True)
                         s["status"] = "pending"
-    for key in ("glossary", "engine", "model_size", "original_volume", "target_language"):
+                        s.pop("score", None)
+    for key in ("glossary", "engine", "model_size", "target_language"):
         if key in patch:
             project[key] = patch[key]
+    for key in ("original_volume", "music_volume"):
+        if patch.get(key) is not None:
+            project[key] = round(max(0.0, min(1.0, float(patch[key]))), 2)
+    if "subtitle" in patch:
+        project["subtitle"] = clean_subtitle(patch["subtitle"])
+    match = patch.get("voice_match")
+    if match in ("speaker", "line") and match != project.get("voice_match", "speaker"):
+        project["voice_match"] = match
+        # Lines of cloned speakers are read again with the other kind of reference.
+        for s in project["segments"]:
+            if project["speakers"].get(s["speaker"], {}).get("mode") == "clone":
+                (clips / f"{s['id']}.wav").unlink(missing_ok=True)
+                s["status"] = "pending"
+                s.pop("score", None)
     if patch.get("approved") is not None:
         project["approved"] = bool(patch["approved"])
     save(project)
