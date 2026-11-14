@@ -27,6 +27,7 @@ from .base import (
     is_model_cached,
     get_torch_device,
     cuda_half_dtype,
+    decode_qwen_one_at_a_time,
     combine_voice_prompts as _combine_voice_prompts,
     model_load_progress,
 )
@@ -125,6 +126,7 @@ class QwenVoiceDesignBackend:
                     torch_dtype=cuda_half_dtype(),
                 )
 
+        decode_qwen_one_at_a_time(self.model)
         self._current_model_size = model_size
         self.model_size = model_size
         logger.info("Qwen VoiceDesign %s loaded successfully", model_size)

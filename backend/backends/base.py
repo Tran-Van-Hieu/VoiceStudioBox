@@ -224,6 +224,28 @@ def empty_device_cache(device: str) -> None:
         torch.mps.empty_cache()
 
 
+def decode_qwen_one_at_a_time(model) -> None:
+    """Make a loaded Qwen3TTSModel turn codes into audio one clip at a time.
+
+    Batched generation hands the codec all clips at once; decoding four 20 s
+    clips together added 1.5 GB for a few seconds (7.9 GB on an 8 GB card).
+    One at a time costs nothing measurable and keeps the batch speed-up.
+    """
+    tokenizer = model.model.speech_tokenizer
+    batch_decode = tokenizer.decode
+
+    def decode(encoded, *args, **kwargs):
+        if not isinstance(encoded, list) or len(encoded) < 2:
+            return batch_decode(encoded, *args, **kwargs)
+        wavs, rate = [], None
+        for item in encoded:
+            out, rate = batch_decode([item], *args, **kwargs)
+            wavs.extend(out)
+        return wavs, rate
+
+    tokenizer.decode = decode
+
+
 def cuda_half_dtype():
     """bfloat16 where the GPU computes it natively, else float16 (Colab's T4).
 

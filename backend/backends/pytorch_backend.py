@@ -21,6 +21,7 @@ from .base import (
     empty_device_cache,
     manual_seed,
     cuda_half_dtype,
+    decode_qwen_one_at_a_time,
     combine_voice_prompts as _combine_voice_prompts,
     model_load_progress,
 )
@@ -116,6 +117,7 @@ class PyTorchTTSBackend:
                     torch_dtype=cuda_half_dtype(),
                 )
 
+        decode_qwen_one_at_a_time(self.model)
         self._current_model_size = model_size
         self.model_size = model_size
         logger.info("TTS model %s loaded successfully", model_size)
@@ -328,11 +330,12 @@ class PyTorchSTTBackend:
             self.processor = WhisperProcessor.from_pretrained(model_name)
             self.model = WhisperForConditionalGeneration.from_pretrained(model_name)
 
-        self.model.to(self.device)
         if self.device == "cuda":
             # Half precision halves Whisper's VRAM, which is what lets it sit
-            # next to a TTS model on an 8 GB card during speech QC.
+            # next to a TTS model on an 8 GB card during speech QC. Halve before
+            # moving: moving first kept 3.3 GB reserved for 1.5 GB of weights.
             self.model.half()
+        self.model.to(self.device)
         from ..utils import abort
 
         abort.guard(self.model)

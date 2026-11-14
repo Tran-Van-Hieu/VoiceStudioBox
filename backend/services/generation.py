@@ -143,6 +143,9 @@ async def run_generation(
 
         duration = len(audio) / sample_rate
         abort.check()
+        # Hand the synthesis scratch memory back before Whisper listens: after a
+        # batched Qwen pass the final check peaked at 7.9 GB on an 8 GB card.
+        release_generation_memory(tts_model)
         final = None
         if not abort.checks_skipped():
             reference = await reference_embedding(resolved)

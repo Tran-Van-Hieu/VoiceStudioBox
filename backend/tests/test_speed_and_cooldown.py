@@ -180,3 +180,20 @@ def test_slowing_down_never_makes_a_pause_the_check_calls_too_long():
     y = change_speed(x, sr, 0.8)
     assert abs(len(y) - len(x) / 0.8) < sr * 0.05
     assert max(b - a for a, b in _pause_runs(y, sr)) <= sr * 1.25
+
+
+def test_qwen_decodes_batched_clips_one_at_a_time_in_order():
+    from types import SimpleNamespace
+
+    from backend.backends.base import decode_qwen_one_at_a_time
+
+    calls = []
+
+    def decode(items):
+        calls.append(len(items))
+        return [f"wav{item['audio_codes']}" for item in items], 24000
+
+    model = SimpleNamespace(model=SimpleNamespace(speech_tokenizer=SimpleNamespace(decode=decode)))
+    decode_qwen_one_at_a_time(model)
+    wavs, rate = model.model.speech_tokenizer.decode([{"audio_codes": i} for i in range(3)])
+    assert wavs == ["wav0", "wav1", "wav2"] and rate == 24000 and calls == [1, 1, 1]

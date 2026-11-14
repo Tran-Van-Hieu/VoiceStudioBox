@@ -123,11 +123,16 @@ async def design(profile, language: str, emotion: str, intensity: float, instruc
     voice = {"voice_type": "designed", "design_prompt": profile.design_prompt}
     style = compose_instruct(DESIGN_ENGINE, emotion, intensity, instruct)
     qc = speech_qc.build_qc(DESIGN_ENGINE, lang)
+    seed = 7 + 1000 * round_
+    try:
+        # One pass for all takes: rows of a batch sample independently.
+        made = await designer.generate_batch([text] * _TAKES, voice, lang, seed, style)
+    finally:
+        # Free the designer before Whisper loads: together they peaked at 7.1 GB.
+        designer.unload_model()
     takes: list[dict] = []
     try:
-        for i in range(_TAKES):
-            seed = 7 + 13 * i + 1000 * round_
-            audio, rate = await designer.generate(text, voice, lang, seed, style)
+        for i, (audio, rate) in enumerate(made):
             audio = np.asarray(audio, dtype=np.float32)
             peak = float(np.max(np.abs(audio))) if len(audio) else 0.0
             if peak > 0.95:
@@ -141,8 +146,6 @@ async def design(profile, language: str, emotion: str, intensity: float, instruc
             await asyncio.to_thread(sf.write, str(_take_file(stem, i)), audio, rate, "PCM_16")
             takes.append({"seed": seed, "words": round(float(words), 2), "mos": mos, "seconds": round(len(audio) / rate, 1)})
     finally:
-        # The clone model needs the room; the designer is only needed again for new takes.
-        designer.unload_model()
         naturalness.release()
     meta = {
         "profile_id": profile.id,
