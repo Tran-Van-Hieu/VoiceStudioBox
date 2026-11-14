@@ -45,6 +45,32 @@ def _build_messages(
     return messages
 
 
+# Cards with less memory than this load the translator in 4-bit.
+_FULL_PRECISION_MIN_GB = 12
+
+
+def _small_card_quantization(device: str):
+    """A 4-bit config for a CUDA card under 12 GB, or None to load float16."""
+    import torch
+
+    if device != "cuda" or not torch.cuda.is_available():
+        return None
+    if torch.cuda.get_device_properties(0).total_memory / 2**30 >= _FULL_PRECISION_MIN_GB:
+        return None
+    try:
+        import bitsandbytes  # noqa: F401
+        from transformers import BitsAndBytesConfig
+    except ImportError:
+        logger.warning("bitsandbytes is not installed; Qwen3 loads in float16 and may spill out of VRAM")
+        return None
+    return BitsAndBytesConfig(
+        load_in_4bit=True,
+        bnb_4bit_quant_type="nf4",
+        bnb_4bit_compute_dtype=torch.float16,
+        bnb_4bit_use_double_quant=True,
+    )
+
+
 class PyTorchQwenLLMBackend:
     """Qwen3 LLM backend using HuggingFace transformers."""
 
@@ -95,11 +121,20 @@ class PyTorchQwenLLMBackend:
             # removed app-wide in #524/#530.
             self.tokenizer = AutoTokenizer.from_pretrained(repo)
             dtype = torch.float16 if self.device in ("cuda", "mps") else torch.float32
-            self.model = AutoModelForCausalLM.from_pretrained(
-                repo,
-                dtype=dtype,
-            )
-            self.model.to(self.device)
+            quant = _small_card_quantization(self.device)
+            if quant is not None:
+                # 4B in float16 is 8 GB of weights: on an 8 GB card it spills into
+                # system RAM and crawls. 4-bit keeps it near 3 GB.
+                logger.info("Loading Qwen3 %s in 4-bit to fit the GPU", model_size)
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    repo, quantization_config=quant, dtype=dtype, device_map={"": 0}
+                )
+            else:
+                self.model = AutoModelForCausalLM.from_pretrained(
+                    repo,
+                    dtype=dtype,
+                )
+                self.model.to(self.device)
             self.model.eval()
 
         from ..utils import abort

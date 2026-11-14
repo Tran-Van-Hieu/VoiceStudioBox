@@ -100,3 +100,10 @@ def test_brief_shrinks_on_out_of_memory_and_never_stops_the_dub(monkeypatch, tmp
     project = {"target_language": "vi", "segments": [{"text": "あ" * 50} for _ in range(400)]}
     asyncio.run(dubbing._make_brief(project, FakeLLM(fits=0), "4B"))
     assert "brief" not in project and len(sizes) == 3  # gave up quietly after three tries
+
+
+def test_translations_keyed_by_number_survive_extra_context_lines():
+    reply = '{"1": "một", "2": "hai", "3": "ba (ngữ cảnh)"}'
+    assert dubbing._parse_lines(reply, 2) == ["một", "hai"]
+    assert dubbing._parse_lines('["a", "b", "c"]', 2) is None  # an array cannot say which two
+    assert dubbing._parse_lines('["a", "b"]', 2) == ["a", "b"]

@@ -83,3 +83,5 @@ sse-starlette>=2.0
 # Utilities
 python-multipart>=0.0.6
 Pillow>=10.0.0
+# Loads the Qwen3 4B translator in 4-bit on cards under 12 GB.
+bitsandbytes>=0.45

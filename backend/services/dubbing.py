@@ -398,7 +398,20 @@ def _diarize(project: dict, folder: Path) -> None:
 
 
 def _parse_lines(reply: str, expected: int) -> Optional[list[str]]:
-    """Read the model's lines. It answers as a JSON array or as a numbered list."""
+    """Read the model's lines: a JSON object keyed by line number, a JSON array or a numbered list.
+
+    Keys make extra lines harmless: the model sometimes translates the context too,
+    and an array of 10 for 8 lines cannot say which ones were asked for.
+    """
+    if "{" in reply and "}" in reply:
+        try:
+            table = json.loads(reply[reply.index("{") : reply.rindex("}") + 1])
+            if isinstance(table, dict):
+                picked = [table.get(str(i + 1)) for i in range(expected)]
+                if all(isinstance(v, str) for v in picked):
+                    return [v.strip() for v in picked]
+        except ValueError:
+            pass
     try:
         values = json.loads(reply[reply.index("[") : reply.rindex("]") + 1])
         if isinstance(values, list) and len(values) == expected:
@@ -427,7 +440,8 @@ def _system_prompt(project: dict) -> str:
         f"You are a professional dubbing translator from {source} to natural spoken {target}. "
         "Translate only what each numbered line says, using the lines around it to understand who is speaking and what is meant. "
         "Never add, drop, soften or explain anything. Keep names, numbers, dates, units and facts exactly. "
-        "Lines marked as context are for reading only. Output only a JSON array of strings, one per numbered line, in the same order."
+        "Lines marked as context are for reading only: never translate them. "
+        'Output only a JSON object mapping each line number to its translation, like {"1": "...", "2": "..."}.'
         + extra
     )
 
@@ -554,9 +568,10 @@ async def _translate_all(project: dict) -> None:
             lines = [s["text"] for s in batch]
             result = await ask(lines, before, after)
             if result is None:
+                # One line at a time, alone: with context the model may answer for it too.
                 result = []
                 for line in lines:
-                    single = await ask([line], before, after)
+                    single = await ask([line], [], [])
                     result.append(single[0] if single else "")
             for segment, translation in zip(batch, result):
                 warning = _line_warning(segment["text"], translation)
@@ -649,6 +664,13 @@ async def _ensure_voices(project: dict, folder: Path, db) -> None:
         for segment in picked:
             parts += [mono[int(segment["start"] * rate) : int(segment["end"] * rate)], gap]
         clip = np.concatenate(parts[:-1])[: int(rate * 29)]
+        text = " ".join(s["text"] for s in picked)
+        # A speaker heard for under 2 seconds still gets their own voice: the clip
+        # (and its words) is repeated, rather than the whole dub stopping.
+        if 0 < len(clip) < rate * _CLONE_MIN_SECONDS:
+            times = int(np.ceil(rate * _CLONE_MIN_SECONDS / (len(clip) + len(gap))))
+            clip = np.concatenate([np.concatenate([clip, gap])] * times)[: -len(gap) or None]
+            text = " ".join([text] * times)
         clip = await asyncio.to_thread(audio_clean.denoise, clip, rate, 0.7)
         path = folder / f"voice_{name}.wav"
         peak = float(np.max(np.abs(clip)))
@@ -661,7 +683,12 @@ async def _ensure_voices(project: dict, folder: Path, db) -> None:
             ),
             db,
         )
-        await profiles.add_profile_sample(created.id, str(path), " ".join(s["text"] for s in picked), db)
+        try:
+            await profiles.add_profile_sample(created.id, str(path), text, db)
+        except Exception:
+            # An empty profile would block the next try with "name already exists".
+            await profiles.delete_profile(created.id, db)
+            raise
         voice["profile_id"] = created.id
     save(project)
 
