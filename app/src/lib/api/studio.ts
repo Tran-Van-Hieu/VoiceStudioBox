@@ -235,8 +235,6 @@ export interface DubSegment {
   warning?: 'empty' | 'untranslated' | 'numbers' | null;
   score?: number;
   error?: string;
-  /** Which voice reference read this line: its own source audio or the speaker's. */
-  reference?: 'line' | 'speaker';
 }
 
 export interface DubSubtitle {
@@ -254,7 +252,6 @@ export interface DubSubtitle {
 
 /** Settings that change how a dub sounds and looks, editable before and after it runs. */
 export interface DubOutput {
-  voice_match: 'speaker' | 'line';
   original_volume: number;
   music_volume: number;
   subtitle: DubSubtitle;
@@ -262,6 +259,7 @@ export interface DubOutput {
 
 export interface DubSpeaker {
   label: string;
+  /** 'clone' only in dubs made before original-voice cloning was removed. */
   mode: 'clone' | 'profile';
   profile_id: string | null;
 }
@@ -290,7 +288,6 @@ export interface DubProject {
   segments: DubSegment[];
   speakers: Record<string, DubSpeaker>;
   qc: { level: QualityLevel; problems: DubProblem[] } | null;
-  voice_match?: DubOutput['voice_match'];
   original_volume?: number;
   music_volume?: number;
   subtitle?: DubSubtitle;

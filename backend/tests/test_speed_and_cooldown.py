@@ -114,28 +114,6 @@ def test_no_rest_when_the_queue_was_already_idle_long_enough(monkeypatch, _setti
     assert released == []
 
 
-def test_dub_speaker_left_without_lines_is_skipped(tmp_path, monkeypatch):
-    import soundfile as sf
-
-    from backend import config
-    from backend.services import dubbing
-
-    monkeypatch.setattr(config, "_data_dir", tmp_path)
-    project = {
-        "id": "a" * 32,
-        "name": "clip",
-        "segments": [{"id": "s00000", "start": 0.0, "end": 1.0, "speaker": "S1", "text": "hola"}],
-        # All of S2's lines were moved to S1 during review.
-        "speakers": {"S1": {"mode": "clone", "profile_id": "p1"}, "S2": {"mode": "clone", "profile_id": None}},
-    }
-    folder = dubbing._folder(project["id"])
-    (folder / "stems").mkdir(parents=True)
-    sf.write(str(folder / "stems" / "vocals.wav"), np.zeros(16000, dtype=np.float32), 16000)
-
-    asyncio.run(dubbing._ensure_voices(project, folder, db=None))
-    assert project["speakers"]["S2"]["profile_id"] is None
-
-
 def test_history_dates_compare_as_utc_instants():
     from datetime import datetime
 

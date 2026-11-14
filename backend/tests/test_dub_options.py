@@ -107,3 +107,13 @@ def test_translations_keyed_by_number_survive_extra_context_lines():
     assert dubbing._parse_lines(reply, 2) == ["một", "hai"]
     assert dubbing._parse_lines('["a", "b", "c"]', 2) is None  # an array cannot say which two
     assert dubbing._parse_lines('["a", "b"]', 2) == ["a", "b"]
+
+
+def test_speakers_start_on_the_library_voice_chosen_for_the_dub(tmp_path):
+    from backend.services import dubbing
+
+    (tmp_path / "stems").mkdir()
+    sf.write(str(tmp_path / "stems" / "vocals.wav"), np.zeros(16000, dtype=np.float32), 16000)
+    project = {"profile_id": "voice-1", "segments": []}
+    dubbing._diarize(project, tmp_path)
+    assert project["speakers"] == {"S1": {"label": "Người nói 1", "mode": "profile", "profile_id": "voice-1"}}

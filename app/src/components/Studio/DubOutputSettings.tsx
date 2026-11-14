@@ -25,7 +25,6 @@ export const SUBTITLE_DEFAULTS: DubSubtitle = {
 };
 
 export const DUB_OUTPUT_DEFAULTS: DubOutput = {
-  voice_match: 'speaker',
   original_volume: 0,
   music_volume: 1,
   subtitle: SUBTITLE_DEFAULTS,
@@ -33,7 +32,6 @@ export const DUB_OUTPUT_DEFAULTS: DubOutput = {
 
 export function dubOutputOf(project: DubProject): DubOutput {
   return {
-    voice_match: project.voice_match ?? 'speaker',
     original_volume: project.original_volume ?? 0,
     music_volume: project.music_volume ?? 1,
     subtitle: { ...SUBTITLE_DEFAULTS, ...project.subtitle },
@@ -94,20 +92,6 @@ export function DubOutputSettings({
 
   return (
     <div className="space-y-3">
-      <Field label={t('studio.dub.out.match')} hint={t('studio.dub.out.matchHint')}>
-        <Select
-          value={value.voice_match}
-          onValueChange={(v) => onChange({ ...value, voice_match: v as DubOutput['voice_match'] })}
-        >
-          <SelectTrigger>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="speaker">{t('studio.dub.out.matchSpeaker')}</SelectItem>
-            <SelectItem value="line">{t('studio.dub.out.matchLine')}</SelectItem>
-          </SelectContent>
-        </Select>
-      </Field>
       <div className="grid gap-3 sm:grid-cols-2">
         <SliderField
           label={t('studio.dub.out.vocals')}

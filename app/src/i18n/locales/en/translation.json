@@ -1758,7 +1758,7 @@
         "custom": "Custom service"
       },
       "translatorHint": {
-        "4B": "Uses nearly all of 8 GB VRAM, so it's slow: about 13 s per line.",
+        "4B": "4-bit on cards under 12 GB, about 2.5-5 GB VRAM. Roughly 1 s per line.",
         "1.7B": "Very fast but often gets details wrong, so review carefully.",
         "custom": "Uses the OpenAI-compatible server configured in Settings."
       },
@@ -1769,8 +1769,8 @@
       "autoContinue": "Continue without stopping to review",
       "start": "Start ({{count}} files)",
       "voices": "Voice for each speaker",
-      "keepVoice": "Clone the original voice",
-      "useVoice": "Use a library voice",
+      "voice": "Voice (from the library)",
+      "voiceHint": "Every speaker uses this voice. You can change it per speaker during review.",
       "review": "Review translation",
       "transcript": "Transcript",
       "approve": "Approve and dub",

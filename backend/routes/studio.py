@@ -445,13 +445,15 @@ async def dub_create(
     original_volume: float = Form(0.0),
     music_volume: float = Form(1.0),
     llm_size: str = Form("4B"),
-    voice_match: str = Form("speaker"),
+    profile_id: str = Form(""),
     subtitle: str = Form("{}"),
     srt: Optional[UploadFile] = File(None),
     srt_role: str = Form("source"),
 ) -> list[dict[str, Any]]:
-    if mode not in ("dub", "transcribe") or voice_match not in ("speaker", "line") or srt_role not in ("source", "target"):
+    if mode not in ("dub", "transcribe") or srt_role not in ("source", "target"):
         raise HTTPException(status_code=400, detail="Invalid mode")
+    if mode == "dub" and not profile_id:
+        raise HTTPException(status_code=400, detail="Chọn một giọng trong Thư viện để lồng tiếng.")
     cues = None
     if srt is not None and srt.filename:
         if len(files) > 1:
@@ -482,7 +484,7 @@ async def dub_create(
                 "original_volume": max(0.0, min(1.0, original_volume)),
                 "music_volume": max(0.0, min(1.0, music_volume)),
                 "llm_size": llm_size,
-                "voice_match": voice_match,
+                "profile_id": profile_id or None,
                 "subtitle": style,
                 "srt_cues": cues,
                 "srt_role": srt_role,

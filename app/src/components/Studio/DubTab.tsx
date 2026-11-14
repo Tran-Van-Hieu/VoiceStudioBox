@@ -26,6 +26,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { type DubOutput, type DubProject, type DubSegment, studioApi } from '@/lib/api/studio';
+import { useProfiles } from '@/lib/hooks/useProfiles';
 import { cn } from '@/lib/utils/cn';
 import {
   ErrorNote,
@@ -39,6 +40,7 @@ import {
   parseEngine,
   QualityBadge,
   useSaveBlob,
+  useSticky,
   VoicePicker,
 } from './common';
 import { DUB_OUTPUT_DEFAULTS, DubOutputSettings, dubOutputOf } from './DubOutputSettings';
@@ -62,6 +64,10 @@ function NewDub({ onCreated }: { onCreated: (id: string) => void }) {
   const [source, setSource] = useState('auto');
   const [target, setTarget] = useState('vi');
   const [model, setModel] = useState<string | null>('omnivoice');
+  const [voice, setVoice] = useSticky<string | null>('vsbox.dub.voice', null);
+  const { data: profiles } = useProfiles();
+  // A remembered voice may have been deleted since.
+  const voiceOk = !!profiles?.some((p) => p.id === voice);
   const [mode, setMode] = useState<'dub' | 'transcribe'>('dub');
   const [auto, setAuto] = useState<boolean | null>(null);
   const autoRun = auto ?? files.length > 1;
@@ -76,7 +82,7 @@ function NewDub({ onCreated }: { onCreated: (id: string) => void }) {
   const canRun =
     files.length > 0 &&
     !(srt && files.length > 1) &&
-    (mode === 'transcribe' || (!!model && engineSupports(parsed.engine, target)));
+    (mode === 'transcribe' || (!!model && voiceOk && engineSupports(parsed.engine, target)));
 
   const create = useMutation({
     mutationFn: () => {
@@ -92,7 +98,7 @@ function NewDub({ onCreated }: { onCreated: (id: string) => void }) {
       form.append('glossary', glossary);
       form.append('original_volume', String(output.original_volume));
       form.append('music_volume', String(output.music_volume));
-      form.append('voice_match', output.voice_match);
+      if (mode === 'dub' && voice) form.append('profile_id', voice);
       form.append('subtitle', JSON.stringify(output.subtitle));
       if (srt) {
         form.append('srt', srt);
@@ -171,6 +177,9 @@ function NewDub({ onCreated }: { onCreated: (id: string) => void }) {
             </Field>
             <Field label={t('studio.common.model')}>
               <ModelPicker value={model} onChange={setModel} language={target} />
+            </Field>
+            <Field label={t('studio.dub.voice')} hint={t('studio.dub.voiceHint')}>
+              <VoicePicker value={voiceOk ? voice : null} onChange={setVoice} />
             </Field>
             <Field
               label={t('studio.dub.translator')}
@@ -294,11 +303,6 @@ function ReviewRow({
       </Select>
       <p className="text-xs text-muted-foreground pt-1.5">
         {segment.text}
-        {segment.reference && (
-          <span className="ml-1.5 rounded bg-muted px-1 py-0.5 text-[10px]">
-            {t(segment.reference === 'line' ? 'studio.dub.out.refLine' : 'studio.dub.out.refSpeaker')}
-          </span>
-        )}
       </p>
       <Textarea
         rows={2}
@@ -359,9 +363,7 @@ function DubDetail({ id, onDeleted }: { id: string; onDeleted: () => void }) {
   const segments = project.segments.map((s) => ({ ...s, ...edits[s.id] }));
   const canReview =
     ['review', 'done', 'failed', 'stopped'].includes(project.stage) && project.mode === 'dub';
-  const unassigned = speakerNames.some(
-    (s) => project.speakers[s].mode === 'profile' && !project.speakers[s].profile_id,
-  );
+  const unassigned = speakerNames.some((s) => !project.speakers[s].profile_id);
 
   const download = async (name: string, blob: Blob, ext: string) =>
     saveBlob(`${project.name}-${name}.${ext}`, blob, ext);
@@ -453,42 +455,19 @@ function DubDetail({ id, onDeleted }: { id: string; onDeleted: () => void }) {
             return (
               <div
                 key={name}
-                className="grid gap-2 sm:grid-cols-[100px_1fr_1fr] items-center text-sm"
+                className="grid gap-2 sm:grid-cols-[100px_1fr] items-center text-sm"
               >
                 <span>{voice.label}</span>
-                <Select
-                  value={voice.mode}
-                  onValueChange={(mode) =>
+                <VoicePicker
+                  className="h-8 text-xs"
+                  value={voice.profile_id}
+                  onChange={(profile_id) =>
                     studioApi
-                      .updateDub(id, {
-                        speakers: {
-                          [name]: { mode, profile_id: mode === 'clone' ? null : voice.profile_id },
-                        },
-                      })
+                      .updateDub(id, { speakers: { [name]: { mode: 'profile', profile_id } } })
                       .then(refresh)
                       .catch(handleError)
                   }
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="clone">{t('studio.dub.keepVoice')}</SelectItem>
-                    <SelectItem value="profile">{t('studio.dub.useVoice')}</SelectItem>
-                  </SelectContent>
-                </Select>
-                {voice.mode === 'profile' && (
-                  <VoicePicker
-                    className="h-8 text-xs"
-                    value={voice.profile_id}
-                    onChange={(profile_id) =>
-                      studioApi
-                        .updateDub(id, { speakers: { [name]: { profile_id } } })
-                        .then(refresh)
-                        .catch(handleError)
-                    }
-                  />
-                )}
+                />
               </div>
             );
           })}

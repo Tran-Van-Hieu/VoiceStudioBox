@@ -1773,7 +1773,7 @@
         "custom": "Dịch vụ tùy chỉnh"
       },
       "translatorHint": {
-        "4B": "Dùng gần hết 8 GB VRAM nên chậm, khoảng 13 giây mỗi câu.",
+        "4B": "Nén 4-bit trên card dưới 12 GB, dùng khoảng 2,5–5 GB VRAM. Khoảng 1 giây mỗi câu.",
         "1.7B": "Rất nhanh nhưng hay sai chi tiết, cần đọc lại bản dịch kỹ.",
         "custom": "Dùng máy chủ tương thích OpenAI đã cấu hình trong Cài đặt."
       },
@@ -1784,8 +1784,8 @@
       "autoContinue": "Tự chạy tiếp, không dừng để duyệt bản dịch",
       "start": "Bắt đầu ({{count}} file)",
       "voices": "Giọng cho từng người nói",
-      "keepVoice": "Clone giọng gốc",
-      "useVoice": "Dùng giọng trong Thư viện",
+      "voice": "Giọng đọc (trong Thư viện)",
+      "voiceHint": "Mọi người nói dùng giọng này. Khi duyệt có thể đổi riêng cho từng người.",
       "review": "Duyệt bản dịch",
       "transcript": "Bản chép lời",
       "approve": "Duyệt và lồng tiếng",
@@ -1838,12 +1838,8 @@
         "numbers": "Con số khác với lời gốc, hãy kiểm tra"
       },
       "out": {
-        "title": "Khớp giọng, âm lượng và phụ đề",
+        "title": "Âm lượng và phụ đề",
         "applyHint": "Đổi xong bấm Áp dụng để đọc lại và trộn lại. Chỉ những câu bị ảnh hưởng mới đọc lại.",
-        "match": "Khớp giọng",
-        "matchSpeaker": "Theo người nói (mọi câu dùng chung một tham chiếu)",
-        "matchLine": "Theo từng câu (nhân bản từ chính câu gốc)",
-        "matchHint": "Theo từng câu giữ cảm xúc của từng câu. Câu ngắn hơn 2 giây hoặc bị nhạc lấn sẽ tự dùng tham chiếu của người nói. Chỉ áp cho người nói đang để \"Clone giọng gốc\".",
         "vocals": "Giọng gốc dưới câu lồng tiếng",
         "music": "Nhạc nền dưới câu lồng tiếng",
         "levelHint": "Chỉ giảm trong lúc có câu lồng tiếng; ngoài các câu đó âm thanh gốc giữ 100%.",
@@ -1872,9 +1868,7 @@
         "srtClear": "Bỏ",
         "srtRole": "Nội dung SRT là",
         "srtSource": "Lời gốc (bỏ qua Whisper)",
-        "srtTarget": "Bản dịch sẵn (bỏ qua bước dịch)",
-        "refLine": "giọng câu",
-        "refSpeaker": "giọng người nói"
+        "srtTarget": "Bản dịch sẵn (bỏ qua bước dịch)"
       }
     },
     "history": {

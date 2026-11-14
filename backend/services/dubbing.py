@@ -52,17 +52,6 @@ _BORROW_GAP = 0.6
 _DUB_LUFS = -16.0
 _MIN_MATCHED_LUFS, _MAX_MATCHED_LUFS = -26.0, -12.0
 _REPLACE_RAMP = 0.04
-# One continuous utterance clones better than several joined: scored 1.0 on three
-# seeds where two joined utterances scored 0.82-0.93.
-_CLONE_SECONDS = 8.0
-_CLONE_MIN_SECONDS = 3.0
-_CLONE_MAX_SECONDS = 15.0
-# Per-line voice match: a line shorter than this, longer than the last, or whose
-# voice is not clearly louder than the music behind it, uses the speaker's reference.
-_LINE_REF_MIN = 2.0
-_LINE_REF_MAX = 30.0
-_LINE_REF_SNR = 2.0  # vocals RMS over background RMS, about 6 dB
-
 SUBTITLE_DEFAULTS: dict[str, Any] = {
     "burn": False,
     "which": "target",  # target | source
@@ -354,13 +343,18 @@ async def _transcribe_all(project: dict, folder: Path) -> None:
             for segment in segments:
                 segment["speaker"] = keys[segment["speaker"]]
             project["speakers"] = {
-                keys[name]: {"label": name, "mode": "clone", "profile_id": None} for name in names
+                keys[name]: _voice(project, name) for name in names
             }
             project["speakers_from_srt"] = True
         project["segments"] = segments
         save(project)
 
     await _gpu(project, "whisper", work)
+
+
+def _voice(project: dict, label: str) -> dict:
+    """Every speaker starts on the library voice chosen for the dub; review can change it."""
+    return {"label": label, "mode": "profile", "profile_id": project.get("profile_id")}
 
 
 def _diarize(project: dict, folder: Path) -> None:
@@ -371,7 +365,7 @@ def _diarize(project: dict, folder: Path) -> None:
     vectors = [speaker.embed(mono[int(s["start"] * rate) : int(s["end"] * rate)], rate) for s in project["segments"]]
     known = [i for i, v in enumerate(vectors) if v is not None]
     if len(known) < 2:
-        project["speakers"] = {"S1": {"label": "Người nói 1", "mode": "clone", "profile_id": None}}
+        project["speakers"] = {"S1": _voice(project, "Người nói 1")}
         return
     matrix = np.stack([vectors[i] for i in known])
     wanted = int(project.get("speaker_count") or 0)
@@ -393,7 +387,7 @@ def _diarize(project: dict, folder: Path) -> None:
             nearest = min(known, key=lambda k: abs(k - i))
             segment["speaker"] = assigned[nearest]
     project["speakers"] = {
-        name: {"label": f"Người nói {name[1:]}", "mode": "clone", "profile_id": None} for name in sorted(set(assigned.values()))
+        name: _voice(project, f"Người nói {name[1:]}") for name in sorted(set(assigned.values()))
     }
 
 
@@ -630,96 +624,6 @@ async def _shorten(project: dict, segments: list[dict]) -> None:
     await _gpu(project, "shorten", work)
 
 
-async def _ensure_voices(project: dict, folder: Path, db) -> None:
-    """Clone each speaker that was left on "keep the original voice"."""
-    from .. import models
-    from . import profiles
-
-    vocals, rate = sf.read(str(folder / "stems" / "vocals.wav"), dtype="float32")
-    mono = vocals.mean(axis=1) if vocals.ndim > 1 else vocals
-    for name, voice in project["speakers"].items():
-        if voice["mode"] != "clone" or voice.get("profile_id"):
-            continue
-        spoken = [s for s in project["segments"] if s["speaker"] == name]
-        if not spoken:  # every line was moved to another speaker during review
-            continue
-        spoken.sort(key=lambda s: abs((s["end"] - s["start"]) - _CLONE_SECONDS))
-        picked, total = [], 0.0
-        best = spoken[0]
-        if _CLONE_MIN_SECONDS <= best["end"] - best["start"] <= _CLONE_MAX_SECONDS:
-            spoken = [best]
-        for segment in spoken:
-            length = segment["end"] - segment["start"]
-            if total + length + 0.25 > _CLONE_MAX_SECONDS:
-                continue
-            picked.append(segment)
-            total += length + 0.25
-            if total >= _CLONE_SECONDS * 0.7:
-                break
-        if not picked:
-            picked = spoken[:1]
-        picked.sort(key=lambda s: s["start"])
-        gap = np.zeros(int(rate * 0.25), dtype=np.float32)
-        parts: list[np.ndarray] = []
-        for segment in picked:
-            parts += [mono[int(segment["start"] * rate) : int(segment["end"] * rate)], gap]
-        clip = np.concatenate(parts[:-1])[: int(rate * 29)]
-        text = " ".join(s["text"] for s in picked)
-        # A speaker heard for under 2 seconds still gets their own voice: the clip
-        # (and its words) is repeated, rather than the whole dub stopping.
-        if 0 < len(clip) < rate * _CLONE_MIN_SECONDS:
-            times = int(np.ceil(rate * _CLONE_MIN_SECONDS / (len(clip) + len(gap))))
-            clip = np.concatenate([np.concatenate([clip, gap])] * times)[: -len(gap) or None]
-            text = " ".join([text] * times)
-        clip = await asyncio.to_thread(audio_clean.denoise, clip, rate, 0.7)
-        path = folder / f"voice_{name}.wav"
-        peak = float(np.max(np.abs(clip)))
-        sf.write(str(path), clip * (0.89 / peak) if peak > 0.89 else clip, rate, subtype="PCM_16")
-        created = await profiles.create_profile(
-            models.VoiceProfileCreate(
-                name=f"Lồng tiếng · {project['name'][:60]} · {name} · {project['id'][:4]}",
-                language=project["target_language"],
-                default_engine=project.get("engine"),
-            ),
-            db,
-        )
-        try:
-            await profiles.add_profile_sample(created.id, str(path), text, db)
-        except Exception:
-            # An empty profile would block the next try with "name already exists".
-            await profiles.delete_profile(created.id, db)
-            raise
-        voice["profile_id"] = created.id
-    save(project)
-
-
-def _line_reference(folder: Path, segment: dict) -> Optional[Path]:
-    """The line's own source audio as its voice reference, or None when it is
-    too short, too long or too buried under the music to clone from."""
-    length = segment["end"] - segment["start"]
-    if not (_LINE_REF_MIN <= length <= _LINE_REF_MAX) or not segment.get("text", "").strip():
-        return None
-    path = folder / "refs" / f"{segment['id']}.wav"
-    if path.is_file():
-        return path
-    stems = folder / "stems"
-    rate = sf.info(str(stems / "vocals.wav")).samplerate
-    a, b = int(segment["start"] * rate), int(segment["end"] * rate)
-    voice = sf.read(str(stems / "vocals.wav"), start=a, stop=b, dtype="float32", always_2d=True)[0].mean(axis=1)
-    music = sf.read(str(stems / "background.wav"), start=a, stop=b, dtype="float32", always_2d=True)[0].mean(axis=1)
-
-    def rms(x: np.ndarray) -> float:
-        return float(np.sqrt(np.mean(np.square(x)))) if len(x) else 0.0
-
-    if rms(voice) < 1e-4 or rms(voice) < _LINE_REF_SNR * rms(music):
-        return None
-    clip = audio_clean.denoise(voice, rate, 0.5)
-    peak = float(np.max(np.abs(clip)))
-    path.parent.mkdir(exist_ok=True)
-    sf.write(str(path), clip * (0.89 / peak) if peak > 0.89 else clip, rate, subtype="PCM_16")
-    return path
-
-
 async def _synthesize(project: dict, folder: Path) -> None:
     from .generation import generate_audio_sync
 
@@ -731,11 +635,6 @@ async def _synthesize(project: dict, folder: Path) -> None:
 
     async def one(segment: dict) -> None:
         voice = project["speakers"][segment["speaker"]]
-        reference = None
-        if project.get("voice_match") == "line" and voice["mode"] == "clone" and engine in ("qwen", "omnivoice"):
-            path = await asyncio.to_thread(_line_reference, folder, segment)
-            if path is not None:
-                reference = (str(path), segment["text"])
         wav = await generate_audio_sync(
             profile_id=voice["profile_id"],
             text=segment["translation"],
@@ -743,10 +642,9 @@ async def _synthesize(project: dict, folder: Path) -> None:
             engine=engine,
             model_size=project.get("model_size") or "1.7B",
             seed=project.get("seed"),
-            reference=reference,
         )
         (clips / f"{segment['id']}.wav").write_bytes(wav)
-        segment.update(status="done", reference="line" if reference else "speaker")
+        segment.update(status="done")
         segment.pop("score", None)
 
     for i, segment in enumerate(todo):
@@ -983,8 +881,6 @@ async def _run(project_id: str) -> None:
 
 
 async def _pipeline(project: dict, project_id: str, folder: Path) -> None:
-    from ..database import get_db
-
     if project_id in _cancelled:
         raise _Stopped()
     wav = folder / "decoded.wav"
@@ -1021,11 +917,9 @@ async def _pipeline(project: dict, project_id: str, folder: Path) -> None:
         project["approved"] = True
 
     _update(project, "synthesizing", 0.6)
-    db = next(get_db())
-    try:
-        await _ensure_voices(project, folder, db)
-    finally:
-        db.close()
+    missing = [v["label"] for v in project["speakers"].values() if not v.get("profile_id")]
+    if missing:
+        raise RuntimeError("Chưa chọn giọng trong Thư viện cho: " + ", ".join(missing))
     await _synthesize(project, folder)
     if not any((folder / "clips" / f"{s['id']}.wav").is_file() for s in project["segments"]):
         errors = {s.get("error") for s in project["segments"] if s.get("error")}
@@ -1116,15 +1010,6 @@ def update(project_id: str, patch: dict[str, Any]) -> dict:
             project[key] = round(max(0.0, min(1.0, float(patch[key]))), 2)
     if "subtitle" in patch:
         project["subtitle"] = clean_subtitle(patch["subtitle"])
-    match = patch.get("voice_match")
-    if match in ("speaker", "line") and match != project.get("voice_match", "speaker"):
-        project["voice_match"] = match
-        # Lines of cloned speakers are read again with the other kind of reference.
-        for s in project["segments"]:
-            if project["speakers"].get(s["speaker"], {}).get("mode") == "clone":
-                (clips / f"{s['id']}.wav").unlink(missing_ok=True)
-                s["status"] = "pending"
-                s.pop("score", None)
     if patch.get("approved") is not None:
         project["approved"] = bool(patch["approved"])
     save(project)
