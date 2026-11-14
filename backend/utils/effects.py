@@ -15,6 +15,7 @@ Supported effect types:
   - highpass     (high-pass filter)
   - lowpass      (low-pass filter)
   - pitch_shift (semitone pitch shifting)
+  - low_shelf / high_shelf (tone: more or less bass / treble)
 """
 
 from __future__ import annotations
@@ -32,6 +33,8 @@ from pedalboard import (
     LowpassFilter,
     Delay,
     PitchShift,
+    LowShelfFilter,
+    HighShelfFilter,
 )
 
 
@@ -144,10 +147,48 @@ EFFECT_REGISTRY: Dict[str, Dict[str, Any]] = {
             "semitones": {"default": 0.0, "min": -12.0, "max": 12.0, "step": 0.5, "description": "Semitones to shift"},
         },
     },
+    "low_shelf": {
+        "cls": LowShelfFilter,
+        "label": "Bass (Low Shelf)",
+        "description": "Raise or lower everything below the cutoff: more body and warmth.",
+        "params": {
+            "cutoff_frequency_hz": {"default": 200.0, "min": 50.0, "max": 1000.0, "step": 10.0, "description": "Cutoff frequency (Hz)"},
+            "gain_db": {"default": 3.0, "min": -12.0, "max": 12.0, "step": 0.5, "description": "Boost / cut (dB)"},
+        },
+    },
+    "high_shelf": {
+        "cls": HighShelfFilter,
+        "label": "Treble (High Shelf)",
+        "description": "Raise or lower everything above the cutoff: negative softens harsh 's' sounds.",
+        "params": {
+            "cutoff_frequency_hz": {"default": 7000.0, "min": 1000.0, "max": 16000.0, "step": 100.0, "description": "Cutoff frequency (Hz)"},
+            "gain_db": {"default": -2.0, "min": -12.0, "max": 12.0, "step": 0.5, "description": "Boost / cut (dB)"},
+        },
+    },
 }
 
 
 BUILTIN_PRESETS: Dict[str, Dict[str, Any]] = {
+    # Warmth by EQ, not pitch: on 9 en/es/ja reads these kept naturalness (UTMOS
+    # 4.13 -> 4.13 / 4.11) while a 1-semitone pitch drop fell to 3.31.
+    "warm": {
+        "name": "Warm",
+        "sort_order": 3,
+        "description": "Fuller, warmer voice: a little more bass, softer highs. Keeps the voice natural.",
+        "effects_chain": [
+            {"type": "low_shelf", "enabled": True, "params": {"cutoff_frequency_hz": 200.0, "gain_db": 3.0}},
+            {"type": "high_shelf", "enabled": True, "params": {"cutoff_frequency_hz": 7000.0, "gain_db": -1.5}},
+        ],
+    },
+    "warm_deep": {
+        "name": "Warm & Deep",
+        "sort_order": 4,
+        "description": "Deeper, richer voice: strong bass, soft highs. Same pitch, so it stays natural.",
+        "effects_chain": [
+            {"type": "low_shelf", "enabled": True, "params": {"cutoff_frequency_hz": 250.0, "gain_db": 5.0}},
+            {"type": "high_shelf", "enabled": True, "params": {"cutoff_frequency_hz": 6000.0, "gain_db": -2.5}},
+        ],
+    },
     "robotic": {
         "name": "Robotic",
         "sort_order": 0,
@@ -366,6 +407,10 @@ def apply_effects(
         audio_2d = audio
 
     processed = board(audio_2d.astype(np.float32), sample_rate)
+    # A bass boost or gain can push peaks past full scale; scale instead of clipping on save.
+    peak = float(np.max(np.abs(processed))) if processed.size else 0.0
+    if peak > 0.99:
+        processed = processed * (0.99 / peak)
 
     # Return same dimensionality as input
     if audio.ndim == 1:

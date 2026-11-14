@@ -556,6 +556,20 @@
         "params": {
           "semitones": "Số nửa cung cần dịch"
         }
+      },
+      "low_shelf": {
+        "label": "Âm trầm (Bass)",
+        "params": {
+          "cutoff_frequency_hz": "Tần số cắt (Hz)",
+          "gain_db": "Tăng / giảm (dB)"
+        }
+      },
+      "high_shelf": {
+        "label": "Âm cao (Treble)",
+        "params": {
+          "cutoff_frequency_hz": "Tần số cắt (Hz)",
+          "gain_db": "Tăng / giảm (dB)"
+        }
       }
     },
     "builtinPresets": {
@@ -573,7 +587,15 @@
       },
       "Deep Voice": {
         "name": "Giọng trầm",
-        "description": "Hạ cao độ và thêm độ ấm"
+        "description": "Hạ cao độ: giọng kém tự nhiên hơn, hợp để làm giọng nhân vật. Muốn giọng trầm mà vẫn tự nhiên, chọn Trầm ấm."
+      },
+      "Warm": {
+        "name": "Ấm áp",
+        "description": "Giọng dày và ấm hơn: thêm chút âm trầm, dịu âm cao. Vẫn tự nhiên."
+      },
+      "Warm & Deep": {
+        "name": "Trầm ấm",
+        "description": "Giọng trầm, dày rõ rệt: nhiều âm trầm, âm cao dịu. Không đổi cao độ nên vẫn tự nhiên."
       }
     }
   },
@@ -1707,7 +1729,8 @@
       "not_downloaded": "Chưa tải model",
       "notTested": "Chưa thử",
       "makeDefault": "Đặt mặc định",
-      "isDefault": "Model mặc định"
+      "isDefault": "Model mặc định",
+      "hintDesigned": "Giọng thiết kế đọc được bằng mọi model, luôn là cùng một giọng. Thử từng model, nghe rồi đặt model hợp nhất làm mặc định: OmniVoice nhanh gấp khoảng 2 lần và đọc được tiếng Việt, Qwen3-TTS nghe tự nhiên nhất."
     },
     "library": {
       "title": "Thư viện giọng",

@@ -558,6 +558,20 @@
         "params": {
           "semitones": "Semitones to shift"
         }
+      },
+      "low_shelf": {
+        "label": "Bass (Low Shelf)",
+        "params": {
+          "cutoff_frequency_hz": "Cutoff frequency (Hz)",
+          "gain_db": "Boost / cut (dB)"
+        }
+      },
+      "high_shelf": {
+        "label": "Treble (High Shelf)",
+        "params": {
+          "cutoff_frequency_hz": "Cutoff frequency (Hz)",
+          "gain_db": "Boost / cut (dB)"
+        }
       }
     },
     "builtinPresets": {
@@ -575,7 +589,15 @@
       },
       "Deep Voice": {
         "name": "Deep Voice",
-        "description": "Lower pitch with added warmth"
+        "description": "Lower pitch: less natural, good for character voices. For a deeper voice that stays natural, use Warm & Deep."
+      },
+      "Warm": {
+        "name": "Warm",
+        "description": "Fuller, warmer voice: a little more bass, softer highs. Keeps the voice natural."
+      },
+      "Warm & Deep": {
+        "name": "Warm & Deep",
+        "description": "Deeper, richer voice: strong bass, soft highs. Same pitch, so it stays natural."
       }
     }
   },
@@ -1694,7 +1716,8 @@
       "not_downloaded": "Not downloaded",
       "notTested": "Not tried",
       "makeDefault": "Make default",
-      "isDefault": "Default model"
+      "isDefault": "Default model",
+      "hintDesigned": "A designed voice can be read by every model, always the same voice. Try each one, listen and make the best one the default: OmniVoice is about twice as fast and also reads Vietnamese, Qwen3-TTS sounds the most natural."
     },
     "library": {
       "title": "Voice library",

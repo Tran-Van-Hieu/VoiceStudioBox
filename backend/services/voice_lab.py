@@ -447,13 +447,26 @@ async def _audition_one(job: dict, profile_id: str, language: str, text: str, op
 
 
 async def _run_audition(job_id: str, profile_id: str, language: str, keys: Optional[list[str]]) -> None:
-    from ..database import ProfileSample, get_db
+    from ..database import ProfileSample, VoiceProfile, get_db
+    from . import design_anchor
 
     job = _jobs[job_id]
     db = next(get_db())
     try:
+        profile = db.query(VoiceProfile).filter_by(id=profile_id).first()
         samples = db.query(ProfileSample).filter_by(profile_id=profile_id).all()
         paths = [str(config.resolve_storage_path(s.audio_path)) for s in samples]
+        if profile is not None and profile.voice_type == "designed":
+            # A designed voice has no samples: compare every model with its fixed clip.
+            try:
+                clip, _ = await run_exclusive(
+                    f"audition-{job_id}-clip",
+                    lambda: design_anchor.ensure(profile, language, "neutral", 1.0, None),
+                )
+            except Exception as e:
+                job.update(stage="done", current=None, error=str(e))
+                return
+            paths = [clip]
     finally:
         db.close()
     reference = await asyncio.to_thread(speaker.embed_files, paths)

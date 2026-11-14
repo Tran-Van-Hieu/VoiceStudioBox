@@ -359,7 +359,11 @@ export function CloneTab() {
 
         {createdId && (
           <div className="xl:col-span-2 space-y-3">
-            <AuditionPanel profileId={createdId} language={currentLanguage} />
+            <AuditionPanel
+              profileId={createdId}
+              language={currentLanguage}
+              autoRun={parseEngine(model ?? 'omnivoice').engine}
+            />
             <Button variant="outline" onClick={() => navigate({ to: '/voices' })}>
               {t('studio.clone.toLibrary')}
             </Button>

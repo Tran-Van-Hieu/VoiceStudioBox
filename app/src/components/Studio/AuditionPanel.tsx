@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Check, FlaskConical, Loader2 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
@@ -9,8 +9,19 @@ import { type AuditionJob, studioApi } from '@/lib/api/studio';
 import { useProfile } from '@/lib/hooks/useProfiles';
 import { ErrorNote, Panel, PlayButton } from './common';
 
-/** One row per model: can it read this language, and how close is it to the original voice. */
-export function AuditionPanel({ profileId, language }: { profileId: string; language: string }) {
+/**
+ * One row per model: can it read this language, and how close is it to the original voice.
+ * *autoRun* (an engine) tries that model at once when nothing was tried yet: a demo right after cloning.
+ */
+export function AuditionPanel({
+  profileId,
+  language,
+  autoRun,
+}: {
+  profileId: string;
+  language: string;
+  autoRun?: string;
+}) {
   const { t } = useTranslation();
   const { toast } = useToast();
   const client = useQueryClient();
@@ -38,7 +49,7 @@ export function AuditionPanel({ profileId, language }: { profileId: string; lang
   const running = !!jobId && job?.stage !== 'done';
 
   const start = useMutation({
-    mutationFn: () => studioApi.startAudition(profileId, language),
+    mutationFn: (keys?: string[]) => studioApi.startAudition(profileId, language, keys),
     onSuccess: (j) => setJobId(j.id),
     onError: (e: Error) => toast({ title: e.message, variant: 'destructive' }),
   });
@@ -53,6 +64,15 @@ export function AuditionPanel({ profileId, language }: { profileId: string; lang
     onError: (e: Error) => toast({ title: e.message, variant: 'destructive' }),
   });
 
+  const autoStarted = useRef(false);
+  useEffect(() => {
+    if (!autoRun || autoStarted.current || !options || !saved) return;
+    autoStarted.current = true;
+    const keys = options.filter((o) => o.engine === autoRun && !o.unavailable).map((o) => o.key);
+    if (keys.length && Object.keys(saved).length === 0) start.mutate(keys);
+  }, [autoRun, options, saved, start]);
+
+  const designed = profile?.voice_type === 'designed';
   const results = { ...saved, ...job?.results };
   const ranked = [...(options ?? [])].sort(
     (a, b) => (results[b.key]?.similarity ?? -1) - (results[a.key]?.similarity ?? -1),
@@ -62,8 +82,14 @@ export function AuditionPanel({ profileId, language }: { profileId: string; lang
   return (
     <Panel title={t('studio.audition.title')}>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-muted-foreground">{t('studio.audition.hint')}</p>
-        <Button size="sm" disabled={running || start.isPending} onClick={() => start.mutate()}>
+        <p className="text-xs text-muted-foreground">
+          {t(designed ? 'studio.audition.hintDesigned' : 'studio.audition.hint')}
+        </p>
+        <Button
+          size="sm"
+          disabled={running || start.isPending}
+          onClick={() => start.mutate(undefined)}
+        >
           {running ? (
             <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
           ) : (
@@ -72,6 +98,7 @@ export function AuditionPanel({ profileId, language }: { profileId: string; lang
           {running ? (job?.current ?? t('studio.audition.running')) : t('studio.audition.run')}
         </Button>
       </div>
+      {job?.error && <ErrorNote>{job.error}</ErrorNote>}
       <div className="divide-y rounded-md border">
         {ranked.map((option) => {
           const row = results[option.key];

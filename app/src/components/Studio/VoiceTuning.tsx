@@ -199,8 +199,20 @@ export function VoiceTuning({
               <SelectItem value="voice">{t('studio.tune.effectsVoice')}</SelectItem>
               <SelectItem value="none">{t('studio.tune.effectsNone')}</SelectItem>
               {presets?.map((p) => (
-                <SelectItem key={p.id} value={p.id}>
-                  {p.name}
+                <SelectItem
+                  key={p.id}
+                  value={p.id}
+                  title={
+                    p.is_builtin
+                      ? t(`effects.builtinPresets.${p.name}.description`, {
+                          defaultValue: p.description ?? '',
+                        })
+                      : (p.description ?? undefined)
+                  }
+                >
+                  {p.is_builtin
+                    ? t(`effects.builtinPresets.${p.name}.name`, { defaultValue: p.name })
+                    : p.name}
                 </SelectItem>
               ))}
             </SelectContent>

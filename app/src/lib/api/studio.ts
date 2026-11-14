@@ -161,6 +161,8 @@ export interface AuditionJob {
   current: string | null;
   results: Record<string, AuditionResult>;
   errors: Record<string, string>;
+  /** The run could not start, e.g. a designed voice's clip could not be made. */
+  error?: string;
 }
 
 // ── Studio ─────────────────────────────────────────────────────────────────
