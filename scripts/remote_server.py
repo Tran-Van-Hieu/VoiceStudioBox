@@ -132,6 +132,16 @@ def _prepare_models(port: int, save_models) -> None:
 
 # Rebuilt or re-downloaded on demand; not worth copying to Drive.
 SKIP_SYNC = {"cache", "backends", "models", "voicebox.db", "voicebox.db-wal", "voicebox.db-shm"}
+# Kept although under those: a designed voice's chosen clip (picked by the user, slow to
+# remake) and the naturalness scorer's weights (392 MB download).
+KEEP_SYNC = {("cache", "design_anchors"), ("models", "utmos")}
+
+
+def _skip_data(rel: Path) -> bool:
+    if tuple(rel.parts[:2]) in KEEP_SYNC:
+        return rel.name.endswith(".tmp")
+    return (rel.parts[0] in SKIP_SYNC or rel.name == "link.txt"
+            or rel.name.endswith((".snapshot", ".tmp")))
 
 
 def restore(persist: Path, data: Path) -> None:
@@ -166,8 +176,7 @@ def backup(data: Path, persist: Path) -> None:
     for leftover in ("voicebox.db-wal", "voicebox.db-shm"):  # from when the DB lived on Drive
         (persist / leftover).unlink(missing_ok=True)
 
-    mirror(data, persist, lambda rel: rel.parts[0] in SKIP_SYNC or rel.name == "link.txt"
-           or rel.name.endswith((".snapshot", ".tmp")))
+    mirror(data, persist, _skip_data)
 
 
 def mirror(src: Path, dst: Path, skip) -> None:

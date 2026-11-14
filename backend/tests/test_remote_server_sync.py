@@ -28,10 +28,13 @@ def test_backup_mirrors_and_restore_brings_voices_back(tmp_path):
     (data / "profiles" / "a" / "sample.wav").write_bytes(b"A" * 10)
     (data / "profiles" / "old.wav").write_bytes(b"old")
     (data / "cache" / "big.bin").write_bytes(b"x")
+    (data / "cache" / "design_anchors").mkdir()
+    (data / "cache" / "design_anchors" / "p_k.take2.wav").write_bytes(b"clip")  # the user's chosen take
 
     remote_server.backup(data, drive)
     assert (drive / "profiles" / "a" / "sample.wav").read_bytes() == b"A" * 10
-    assert not (drive / "cache").exists()
+    assert not (drive / "cache" / "big.bin").exists()
+    assert (drive / "cache" / "design_anchors" / "p_k.take2.wav").exists()
 
     (data / "profiles" / "old.wav").unlink()  # deleted voice must stay deleted
     _db(data / "voicebox.db", ["voice B"])
@@ -45,6 +48,7 @@ def test_backup_mirrors_and_restore_brings_voices_back(tmp_path):
     names = [r[0] for r in sqlite3.connect(fresh / "voicebox.db").execute("SELECT name FROM p")]
     assert names == ["voice A", "voice B"]
     assert (fresh / "profiles" / "a" / "sample.wav").exists()
+    assert (fresh / "cache" / "design_anchors" / "p_k.take2.wav").read_bytes() == b"clip"
     assert not (fresh / "link.txt").exists()
 
 
