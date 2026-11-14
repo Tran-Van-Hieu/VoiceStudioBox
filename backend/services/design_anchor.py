@@ -36,6 +36,9 @@ logger = logging.getLogger(__name__)
 
 DESIGN_ENGINE = "qwen_voice_design"
 CLONE_ENGINE = "qwen"
+# Engines a designed voice can speak with: each clones the voice's clip. OmniVoice
+# also speaks languages VoiceDesign cannot (the clip is then English).
+SPEAKING_ENGINES = {DESIGN_ENGINE, CLONE_ENGINE, "omnivoice"}
 _TAKES = 4
 _WORDS_PASS = 0.9
 _VD_LANGUAGES = {"zh", "en", "ja", "ko", "de", "fr", "ru", "pt", "es", "it"}
@@ -63,10 +66,14 @@ def _dir() -> Path:
     return d
 
 
-def clip_language(language: str) -> str:
-    # VoiceDesign cannot speak e.g. Vietnamese; the clip is then English and
-    # the clone speaks the target language with that voice.
-    return language if language in _VD_LANGUAGES else "en"
+def clip_language(language: str, voice_language: str | None = None) -> str:
+    """The language the clip is spoken in. VoiceDesign cannot speak e.g.
+    Vietnamese: the clip is then in the voice's own language (else English),
+    and OmniVoice speaks the target language with that voice."""
+    for lang in (language, voice_language):
+        if lang in _VD_LANGUAGES:
+            return lang
+    return "en"
 
 
 def _stem(profile, lang: str, emotion: str, intensity: float, instruct: Optional[str]) -> str:
@@ -101,7 +108,7 @@ def _pick(takes: list[dict]) -> int:
 
 async def ensure(profile, language: str, emotion: str, intensity: float, instruct: Optional[str]) -> tuple[str, str]:
     """Path and transcript of the profile's chosen clip, designing it on first use."""
-    lang = clip_language(language)
+    lang = clip_language(language, profile.language)
     stem = _stem(profile, lang, emotion, intensity, instruct)
     meta = _meta(stem)
     if meta is None or not _take_file(stem, meta["chosen"]).is_file():
@@ -115,7 +122,7 @@ async def design(profile, language: str, emotion: str, intensity: float, instruc
     from ..utils.expressive import compose_instruct
     from . import naturalness, speech_qc, vram
 
-    lang = clip_language(language)
+    lang = clip_language(language, profile.language)
     stem = _stem(profile, lang, emotion, intensity, instruct)
     text = _LINES[lang]
     vram.unload_tts(except_engine=DESIGN_ENGINE)

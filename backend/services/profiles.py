@@ -36,7 +36,9 @@ CLONING_ENGINES = {"qwen", "omnivoice"}
 # Engines that synthesise a voice from a natural-language description
 # (voice_type "designed") rather than from samples or a preset id.
 DEFAULT_DESIGN_ENGINE = "qwen_voice_design"
-DESIGN_ENGINES = {DEFAULT_DESIGN_ENGINE}
+# A designed voice is spoken once by VoiceDesign into a fixed clip (design_anchor);
+# the cloning engines read from that clip.
+DESIGN_ENGINES = {DEFAULT_DESIGN_ENGINE, "qwen", "omnivoice"}
 
 
 def _profile_to_response(

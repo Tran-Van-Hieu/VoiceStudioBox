@@ -73,22 +73,27 @@ async def test_designed_profile_gets_design_engine_by_default(test_db, mock_prof
 
 
 @pytest.mark.asyncio
-async def test_designed_profile_rejects_cloning_engine(test_db, mock_profiles_dir):
+async def test_designed_profile_speaks_with_the_cloning_engines_too(test_db, mock_profiles_dir):
+    # They clone the voice's fixed reference clip (services/design_anchor.py).
     with pytest.raises(ValueError, match="cannot use default engine"):
         await create_profile(
             VoiceProfileCreate(
-                name="Bad", language="en", voice_type="designed", design_prompt=DESIGN, default_engine="qwen"
+                name="Bad", language="en", voice_type="designed", design_prompt=DESIGN, default_engine="chatterbox"
             ),
             test_db,
         )
 
     profile = await create_profile(
-        VoiceProfileCreate(name="Designed", language="en", voice_type="designed", design_prompt=DESIGN),
+        VoiceProfileCreate(
+            name="Designed", language="en", voice_type="designed", design_prompt=DESIGN, default_engine="omnivoice"
+        ),
         test_db,
     )
+    assert profile.default_engine == "omnivoice"
+    for engine in ("qwen_voice_design", "qwen", "omnivoice"):
+        validate_profile_engine(profile, engine)
     with pytest.raises(ValueError, match="does not support designed"):
-        validate_profile_engine(profile, "omnivoice")
-    validate_profile_engine(profile, "qwen_voice_design")
+        validate_profile_engine(profile, "chatterbox")
 
 
 @pytest.mark.asyncio
@@ -149,7 +154,7 @@ async def test_update_coerces_legacy_designed_profile_engine(test_db, mock_profi
         test_db,
     )
     row = test_db.query(DBVoiceProfile).filter_by(id=profile.id).first()
-    row.default_engine = "qwen"
+    row.default_engine = "chatterbox"  # an engine this app no longer has
     test_db.commit()
 
     updated = await update_profile(profile.id, VoiceProfileCreate(name="Renamed", language="en"), test_db)

@@ -232,7 +232,7 @@ async def create_design_takes(profile_id: str, language: str = Form(...), db: Se
         await design_anchor.ensure(profile, language, NEUTRAL, DEFAULT_INTENSITY, None)
 
     await run_exclusive(f"design-takes-{profile_id}", work)
-    group = next((g for g in design_anchor.groups(profile_id) if g["language"] == design_anchor.clip_language(language) and g["emotion"] == NEUTRAL and not g["instruct"]), None)
+    group = next((g for g in design_anchor.groups(profile_id) if g["language"] == design_anchor.clip_language(language, profile.language) and g["emotion"] == NEUTRAL and not g["instruct"]), None)
     if group is None:
         raise HTTPException(status_code=500, detail="Could not design the voice clip")
     return group

@@ -106,14 +106,17 @@ async def prepare_voice(
     from ..database import VoiceProfile
     from . import design_anchor, vram
 
-    if engine == design_anchor.DESIGN_ENGINE:
+    if engine in design_anchor.SPEAKING_ENGINES:
         profile = db.query(VoiceProfile).filter_by(id=profile_id).first()
-        clone = get_tts_backend_for_engine(design_anchor.CLONE_ENGINE)
-        if profile is not None and profile.voice_type == "designed" and clone._is_model_cached(model_size):
+        # VoiceDesign itself only makes the clip; Qwen TTS reads from it.
+        speaker = design_anchor.CLONE_ENGINE if engine == design_anchor.DESIGN_ENGINE else engine
+        clone = get_tts_backend_for_engine(speaker)
+        usable = speaker != design_anchor.CLONE_ENGINE or clone._is_model_cached(model_size)
+        if profile is not None and profile.voice_type == "designed" and usable:
             level = DEFAULT_INTENSITY if intensity is None else float(intensity)
             needed = {e for e, _ in parse_emotion_spans(text, emotion)} or {NEUTRAL}
             clips = {e: await design_anchor.ensure(profile, language, e, level, instruct) for e in needed}
-            engine = design_anchor.CLONE_ENGINE
+            engine = speaker
             if not clone.is_loaded():
                 if on_load:
                     await on_load()

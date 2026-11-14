@@ -33,7 +33,8 @@ const ENGINE_DESCRIPTIONS: Record<string, string> = {
 const CLONING_ENGINES = new Set(['qwen', 'omnivoice']);
 
 /** Engines that synthesise a voice from a written description. */
-export const DESIGN_ENGINES = new Set(['qwen_voice_design']);
+// Designed voices are cloned from their fixed reference clip by the cloning engines too.
+export const DESIGN_ENGINES = new Set(['qwen_voice_design', 'qwen', 'omnivoice']);
 
 function getAvailableOptions(selectedProfile?: VoiceProfileResponse | null) {
   if (!selectedProfile) return ENGINE_OPTIONS;
