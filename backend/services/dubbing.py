@@ -38,7 +38,13 @@ _DIARIZE_DISTANCE = 0.25
 _BATCH_LINES = 8
 _CONTEXT_BEFORE = 6
 _CONTEXT_AFTER = 4
-_BRIEF_CHARS = 12000
+# The brief reads samples from the whole video within this many tokens. Attention
+# memory grows with the square of the input: 12k tokens asked an 8 GB card for 10 GB.
+_BRIEF_TOKENS = 3000
+_BRIEF_WINDOWS = 4
+# Chinese, Japanese and Korean cost about a token per character; other scripts
+# about one per 3.5 characters.
+_DENSE_SCRIPT = re.compile(r"[぀-ヿ㐀-䶿一-鿿가-힯ｦ-ﾟ]")
 _NO_STRETCH = 1.12
 _MAX_STRETCH = 1.3
 _SHORTEN_ABOVE = 1.2
@@ -426,25 +432,70 @@ def _system_prompt(project: dict) -> str:
     )
 
 
+def _approx_tokens(text: str) -> int:
+    """Token count without loading a tokenizer; works for a custom LLM endpoint too."""
+    dense = len(_DENSE_SCRIPT.findall(text))
+    return dense + (len(text) - dense) // 3 + 1
+
+
+def _brief_sample(lines: list[str], budget: int) -> str:
+    """Evenly spaced runs of lines from start to end that fit in *budget* tokens.
+
+    Names and topics that only appear late in a long video still reach the brief.
+    """
+    costs = [_approx_tokens(x) for x in lines]
+    if sum(costs) <= budget:
+        return "\n".join(lines)
+    share = budget // _BRIEF_WINDOWS
+    runs: list[str] = []
+    for w in range(_BRIEF_WINDOWS):
+        i, used, run = len(lines) * w // _BRIEF_WINDOWS, 0, []
+        while i < len(lines) and used + costs[i] <= share:
+            run.append(lines[i])
+            used += costs[i]
+            i += 1
+        if run:
+            runs.append("\n".join(run))
+    return "\n…\n".join(runs)
+
+
+def _out_of_memory(e: BaseException) -> bool:
+    return "out of memory" in str(e).lower()
+
+
 async def _make_brief(project: dict, llm, size: str) -> None:
-    """Read the whole transcript once, so every line is translated knowing the topic."""
+    """Read samples of the whole transcript once, so every line is translated knowing the topic."""
     if project.get("brief"):
         return
     target = LANGUAGE_NAMES.get(project["target_language"], project["target_language"])
-    transcript = "\n".join(s["text"] for s in project["segments"])[:_BRIEF_CHARS]
-    reply = await llm.generate(
-        transcript,
-        system=(
-            "You prepare a dubbing translator. In at most 8 short lines state: the topic, who is speaking and how they relate, "
-            f"the tone, then each recurring name or technical term with its correct {target} rendering as `term = rendering`. "
-            "State only what the transcript supports."
-        ),
-        max_tokens=500,
-        temperature=0,
-        model_size=size,
-    )
-    project["brief"] = reply.strip()
-    save(project)
+    lines = [s["text"] for s in project["segments"] if s["text"].strip()]
+    budget = _BRIEF_TOKENS
+    while budget >= _BRIEF_TOKENS // 4:
+        try:
+            reply = await llm.generate(
+                _brief_sample(lines, budget),
+                system=(
+                    "You prepare a dubbing translator. In at most 8 short lines state: the topic, who is speaking and how they relate, "
+                    f"the tone, then each recurring name or technical term with its correct {target} rendering as `term = rendering`. "
+                    "State only what the transcript supports."
+                ),
+                max_tokens=500,
+                temperature=0,
+                model_size=size,
+            )
+        except RuntimeError as e:
+            if not _out_of_memory(e):
+                raise
+            # A card with less free memory than expected: read less rather than stop the dub.
+            logger.warning("Brief ran out of VRAM at %d tokens; trying with less", budget)
+            await asyncio.to_thread(vram.unload_tts, None, True)
+            budget //= 2
+            continue
+        project["brief"] = reply.strip()
+        save(project)
+        return
+    # The brief only helps; translation goes on without it.
+    logger.warning("Skipping the dubbing brief: not enough VRAM")
 
 
 def _line_warning(source: str, translation: str) -> Optional[str]:
@@ -478,11 +529,17 @@ async def _translate_all(project: dict) -> None:
             reply = await llm.generate(prompt, system=system, max_tokens=1600, temperature=0, model_size=size)
         except RuntimeError as e:
             # 4B needs nearly all of an 8 GB card; free the TTS model and try once more.
-            if "out of memory" not in str(e).lower():
+            if not _out_of_memory(e):
                 raise
             logger.warning("Qwen3 4B ran out of VRAM; retrying with the TTS model unloaded")
             await asyncio.to_thread(vram.unload_tts, None, True)
-            reply = await llm.generate(prompt, system=system, max_tokens=1600, temperature=0, model_size=size)
+            try:
+                reply = await llm.generate(prompt, system=system, max_tokens=1600, temperature=0, model_size=size)
+            except RuntimeError as again:
+                if not _out_of_memory(again) or not (before or after):
+                    raise
+                # Still too big: drop the surrounding lines, keep the lines to translate.
+                return await ask(lines, [], [])
         return _parse_lines(reply, len(lines))
 
     async def work() -> None:

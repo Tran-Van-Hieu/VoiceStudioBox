@@ -64,3 +64,39 @@ def test_voice_and_music_drop_only_under_dubbed_lines(tmp_path):
     _, mix = dubbing._mix(project, tmp_path, total)
     assert mix[int(rate * 0.5), 0] == pytest.approx(0.2, abs=1e-3)  # untouched original
     assert mix[int(rate * 1.25), 0] == pytest.approx(0.1 * 0.2 + 0.1 * 0.5, abs=1e-3)
+
+
+def test_brief_budget_counts_japanese_as_dense_and_samples_the_whole_video():
+    assert dubbing._approx_tokens("こんにちは世界") >= 7
+    assert dubbing._approx_tokens("hello world, how are you") < 10
+    lines = [f"行{i}" + "あ" * 40 for i in range(1000)]  # about 45 tokens each
+    text = dubbing._brief_sample(lines, 3000)
+    assert dubbing._approx_tokens(text) <= 3100
+    assert "行0" in text and "行750" in text  # the start and the last quarter both reach the brief
+
+
+def test_brief_shrinks_on_out_of_memory_and_never_stops_the_dub(monkeypatch, tmp_path):
+    import asyncio
+
+    monkeypatch.setattr(dubbing, "save", lambda p: None)
+    monkeypatch.setattr(dubbing.vram, "unload_tts", lambda *a: None)
+    sizes = []
+
+    class FakeLLM:
+        def __init__(self, fits):
+            self.fits = fits
+
+        async def generate(self, prompt, **kw):
+            sizes.append(dubbing._approx_tokens(prompt))
+            if sizes[-1] > self.fits:
+                raise RuntimeError("CUDA out of memory. Tried to allocate 10.36 GiB")
+            return "topic: test"
+
+    project = {"target_language": "vi", "segments": [{"text": "あ" * 50} for _ in range(400)]}
+    asyncio.run(dubbing._make_brief(project, FakeLLM(fits=1600), "4B"))
+    assert project["brief"] == "topic: test" and len(sizes) == 2  # 3000 failed, 1500 fit
+
+    sizes.clear()
+    project = {"target_language": "vi", "segments": [{"text": "あ" * 50} for _ in range(400)]}
+    asyncio.run(dubbing._make_brief(project, FakeLLM(fits=0), "4B"))
+    assert "brief" not in project and len(sizes) == 3  # gave up quietly after three tries
