@@ -116,7 +116,6 @@ def build_server(cuda=False):
             "--hidden-import",
             "backend.backends.pytorch_backend",
             "--hidden-import",
-            "--hidden-import",
             "backend.backends.qwen_voice_design_backend",
             "--hidden-import",
             "backend.utils.audio",
@@ -243,7 +242,6 @@ def build_server(cuda=False):
             "chatterbox",
             "--hidden-import",
             "chatterbox.mtl_tts",
-            "--hidden-import",
             # chatterbox multilingual uses spacy_pkuseg for Chinese word
             # segmentation, which ships pickled dict files (dicts/default.pkl)
             # and native .so extensions that --hidden-import alone won't bundle.
