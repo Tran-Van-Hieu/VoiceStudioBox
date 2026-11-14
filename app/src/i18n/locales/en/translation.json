@@ -1534,6 +1534,21 @@
     }
   },
   "studio": {
+    "designTakes": {
+      "title": "Reference clip",
+      "hint": "Every take in this voice is cloned from the chosen clip, so a whole text and every line stay the same person. The first time the voice is used in a language, 4 takes are made, scored, and the most natural correctly-read one is used (the first time also downloads a 392 MB scoring model). You can listen and pick another.",
+      "create": "Make a reference clip for this language",
+      "working": "Making and scoring 4 takes, about a minute...",
+      "none": "No reference clip yet. It is made on first use, or press the button above to make one now and listen.",
+      "pickedAuto": "Picked automatically",
+      "pickedByYou": "Picked by you",
+      "redo": "Make 4 new takes",
+      "natural": "Natural {{value}}",
+      "words": "Words {{value}}%",
+      "wordsHint": "Whisper listens back and compares with the line",
+      "inUse": "In use",
+      "use": "Use this take"
+    },
     "nav": {
       "clone": "Clone voice",
       "library": "Voice library",

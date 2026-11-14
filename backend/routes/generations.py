@@ -15,7 +15,6 @@ from ..database import Generation as DBGeneration, VoiceProfile as DBVoiceProfil
 from ..services.generation import release_generation_memory, run_generation
 from ..services.styled_synthesis import (
     load_request_style,
-    resolve_prompts,
     save_request_style,
     synthesize_styled,
 )
@@ -348,8 +347,6 @@ async def stream_speech(
         engine_needs_trim,
         engine_retries_runaway,
         ensure_model_cached_or_raise,
-        get_tts_backend_for_engine,
-        load_engine_model,
     )
 
     profile = await profiles.get_profile(data.profile_id, db)
@@ -361,19 +358,25 @@ async def stream_speech(
         profiles.validate_profile_engine(profile, engine)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    tts_model = get_tts_backend_for_engine(engine)
     model_size = data.model_size or "1.7B"
 
     await ensure_model_cached_or_raise(engine, model_size)
     from ..services import vram
+    from ..services.styled_synthesis import prepare_voice
     from ..utils.audio_post import apply_output_processing
 
-    if not tts_model.is_loaded():
-        vram.before_engine_load(engine)
     vram.touch()
-    await load_engine_model(engine, model_size)
-
-    resolved = await resolve_prompts(data.profile_id, db, engine, data.text, data.emotion)
+    tts_model, engine, resolved = await prepare_voice(
+        profile_id=data.profile_id,
+        db=db,
+        engine=engine,
+        model_size=model_size,
+        text=data.text,
+        language=data.language,
+        emotion=data.emotion,
+        intensity=data.emotion_intensity,
+        instruct=data.instruct,
+    )
 
     trim_fn = None
     runaway_detector = None

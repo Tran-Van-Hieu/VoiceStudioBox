@@ -82,6 +82,57 @@ async def resolve_prompts(
     return ResolvedPrompts(prompts, has_sample, reference_paths)
 
 
+async def prepare_voice(
+    *,
+    profile_id: str,
+    db,
+    engine: str,
+    model_size: str,
+    text: str,
+    language: str,
+    emotion: Optional[str],
+    intensity: Optional[float] = None,
+    instruct: Optional[str] = None,
+    use_cache: bool = True,
+    on_load=None,
+):
+    """Load the model and build the voice prompts: ``(tts_model, engine, resolved)``.
+
+    A designed voice on VoiceDesign is read by Qwen TTS, cloned from the voice's
+    fixed clip (see design_anchor), so every chunk and every take is the same
+    person. The returned engine is the one that actually speaks.
+    """
+    from ..backends import get_tts_backend_for_engine, load_engine_model
+    from ..database import VoiceProfile
+    from . import design_anchor, vram
+
+    if engine == design_anchor.DESIGN_ENGINE:
+        profile = db.query(VoiceProfile).filter_by(id=profile_id).first()
+        clone = get_tts_backend_for_engine(design_anchor.CLONE_ENGINE)
+        if profile is not None and profile.voice_type == "designed" and clone._is_model_cached(model_size):
+            level = DEFAULT_INTENSITY if intensity is None else float(intensity)
+            needed = {e for e, _ in parse_emotion_spans(text, emotion)} or {NEUTRAL}
+            clips = {e: await design_anchor.ensure(profile, language, e, level, instruct) for e in needed}
+            engine = design_anchor.CLONE_ENGINE
+            if not clone.is_loaded():
+                if on_load:
+                    await on_load()
+                vram.before_engine_load(engine)
+            await load_engine_model(engine, model_size)
+            prompts = {}
+            for e, (path, line) in clips.items():
+                prompts[e], _ = await clone.create_voice_prompt(path, line, use_cache=use_cache)
+            return clone, engine, ResolvedPrompts(prompts, {e: True for e in clips}, {e: [p] for e, (p, _) in clips.items()})
+
+    model = get_tts_backend_for_engine(engine)
+    if not model.is_loaded():
+        if on_load:
+            await on_load()
+        vram.before_engine_load(engine)
+    await load_engine_model(engine, model_size)
+    return model, engine, await resolve_prompts(profile_id, db, engine, text, emotion, use_cache)
+
+
 async def reference_embedding(resolved: ResolvedPrompts, emotion: str = NEUTRAL):
     """Voice embedding of the clips behind *emotion*, or None for preset voices."""
     paths = resolved.reference_paths.get(emotion) or next(iter(resolved.reference_paths.values()), [])

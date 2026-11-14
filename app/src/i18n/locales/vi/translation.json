@@ -1543,6 +1543,21 @@
     }
   },
   "studio": {
+    "designTakes": {
+      "title": "Giọng mẫu",
+      "hint": "Mỗi lần đọc bằng giọng này, app clone từ bản giọng mẫu được chọn, nên cả bài và mọi câu đều là cùng một giọng. Lần đầu dùng giọng ở một ngôn ngữ, app tự tạo 4 bản, chấm điểm và chọn bản đọc đúng chữ mà tự nhiên nhất (lần đầu tiên tải thêm model chấm điểm 392 MB). Bạn có thể nghe và đổi bản khác.",
+      "create": "Tạo giọng mẫu cho ngôn ngữ này",
+      "working": "Đang tạo 4 bản và chấm điểm, khoảng 1 phút...",
+      "none": "Chưa có giọng mẫu. App sẽ tự tạo khi bạn đọc lần đầu, hoặc bấm nút trên để tạo trước và nghe thử.",
+      "pickedAuto": "App tự chọn",
+      "pickedByYou": "Bạn đã chọn",
+      "redo": "Tạo 4 bản khác",
+      "natural": "Tự nhiên {{value}}",
+      "words": "Đúng chữ {{value}}%",
+      "wordsHint": "Whisper nghe lại và so với câu mẫu",
+      "inUse": "Đang dùng",
+      "use": "Dùng bản này"
+    },
     "nav": {
       "clone": "Clone giọng",
       "library": "Thư viện giọng",

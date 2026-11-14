@@ -16,6 +16,7 @@ import { useProfiles } from '@/lib/hooks/useProfiles';
 import { cn } from '@/lib/utils/cn';
 import { useUIStore } from '@/stores/uiStore';
 import { AuditionPanel } from './AuditionPanel';
+import { DesignTakesPanel } from './DesignTakesPanel';
 import { PageHeader, Panel } from './common';
 import { PREFILL_KEY } from './SpeakTab';
 
@@ -195,6 +196,13 @@ export function LibraryTab() {
                   </Panel>
                   <AuditionPanel profileId={selected.id} language={selected.language} />
                 </>
+              )}
+              {selected.voice_type === 'designed' && (
+                <DesignTakesPanel
+                  key={selected.id}
+                  profileId={selected.id}
+                  language={selected.language}
+                />
               )}
             </>
           )}

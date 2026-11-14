@@ -15,7 +15,7 @@ from ..utils.audio import save_audio
 from ..utils.audio_post import change_speed, load_final, load_segments, save_segments, segments_path
 from ..utils.expressive import NATIVE_SPEED_ENGINES
 from . import audio_clean, extras, final_check, versions, vram
-from .styled_synthesis import load_request_style, reference_embedding, resolve_prompts, synthesize_styled
+from .styled_synthesis import load_request_style, prepare_voice, reference_embedding, synthesize_styled
 from .task_queue import run_exclusive
 
 _CROSSFADE_S = 0.03
@@ -51,7 +51,7 @@ def _splice(audio: np.ndarray, start: int, end: int, patch: np.ndarray, fade: in
 
 async def repair_segment(generation_id: str, index: int) -> dict:
     """Replace segment *index* with a fresh take and re-check the whole file."""
-    from ..backends import engine_needs_trim, get_tts_backend_for_engine, load_engine_model
+    from ..backends import engine_needs_trim
     from ..utils.audio import trim_tts_output
 
     db = next(get_db())
@@ -68,15 +68,21 @@ async def repair_segment(generation_id: str, index: int) -> dict:
 
         async def work() -> dict:
             with vram.engine_in_use(engine):
-                model = get_tts_backend_for_engine(engine)
-                if not model.is_loaded():
-                    vram.before_engine_load(engine)
-                await load_engine_model(engine, size)
                 emotion = segment.get("emotion") or style.get("emotion")
-                resolved = await resolve_prompts(profile_id, db, engine, segment["text"], emotion)
+                model, speaker_engine, resolved = await prepare_voice(
+                    profile_id=profile_id,
+                    db=db,
+                    engine=engine,
+                    model_size=size,
+                    text=segment["text"],
+                    language=language,
+                    emotion=emotion,
+                    intensity=style.get("emotion_intensity"),
+                    instruct=gen.instruct,
+                )
                 fresh, rate, _, _ = await synthesize_styled(
                     tts_model=model,
-                    engine=engine,
+                    engine=speaker_engine,
                     resolved=resolved,
                     text=segment["text"],
                     language=language,

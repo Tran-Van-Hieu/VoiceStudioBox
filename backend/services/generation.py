@@ -76,13 +76,11 @@ async def run_generation(
     from ..backends import (
         engine_needs_trim,
         engine_retries_runaway,
-        get_tts_backend_for_engine,
-        load_engine_model,
     )
     from ..utils.audio import has_tts_runaway, normalize_audio, save_audio, trim_tts_output
     from ..utils.audio_post import apply_output_processing, save_segments
     from . import final_check, vram
-    from .styled_synthesis import reference_embedding, resolve_prompts, synthesize_styled
+    from .styled_synthesis import prepare_voice, reference_embedding, synthesize_styled
 
     task_manager = get_task_manager()
     bg_db = next(get_db())
@@ -91,16 +89,19 @@ async def run_generation(
     vram_ctx.__enter__()
 
     try:
-        tts_model = get_tts_backend_for_engine(engine)
-
-        if not tts_model.is_loaded():
-            await history.update_generation_status(generation_id, "loading_model", bg_db)
-            vram.before_engine_load(engine)
-
-        await load_engine_model(engine, model_size)
+        tts_model, engine, resolved = await prepare_voice(
+            profile_id=profile_id,
+            db=bg_db,
+            engine=engine,
+            model_size=model_size,
+            text=text,
+            language=language,
+            emotion=emotion,
+            intensity=emotion_intensity,
+            instruct=instruct,
+            on_load=lambda: history.update_generation_status(generation_id, "loading_model", bg_db),
+        )
         abort.guard(tts_model)
-
-        resolved = await resolve_prompts(profile_id, bg_db, engine, text, emotion)
 
         await history.update_generation_status(generation_id, "generating", bg_db)
         trim_fn = trim_tts_output if engine_needs_trim(engine) else None
@@ -334,26 +335,28 @@ async def generate_audio_sync(
     from ..backends import (
         engine_needs_trim,
         engine_retries_runaway,
-        get_tts_backend_for_engine,
-        load_engine_model,
     )
     from ..utils.audio import has_tts_runaway, normalize_audio, trim_tts_output
     from ..utils.audio_post import apply_output_processing
     from . import tts, vram
-    from .styled_synthesis import resolve_prompts, synthesize_styled
+    from .styled_synthesis import prepare_voice, synthesize_styled
 
     bg_db = next(get_db())
     tts_model = None
     vram_ctx = vram.engine_in_use(engine)
     vram_ctx.__enter__()
     try:
-        tts_model = get_tts_backend_for_engine(engine)
-        if not tts_model.is_loaded():
-            vram.before_engine_load(engine)
-        await load_engine_model(engine, model_size)
+        tts_model, engine, resolved = await prepare_voice(
+            profile_id=profile_id,
+            db=bg_db,
+            engine=engine,
+            model_size=model_size,
+            text=text,
+            language=language,
+            emotion=None,
+            instruct=instruct,
+        )
         abort.guard(tts_model)
-
-        resolved = await resolve_prompts(profile_id, bg_db, engine, text, None)
     except BaseException:
         vram_ctx.__exit__(None, None, None)
         raise

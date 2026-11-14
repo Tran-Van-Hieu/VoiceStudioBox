@@ -202,6 +202,75 @@ async def delete_profile_sample(
     return {"message": "Sample deleted successfully"}
 
 
+# ── Designed voices: the fixed clip every take is cloned from ──────────────
+
+
+def _designed_profile(profile_id: str, db: Session) -> DBVoiceProfile:
+    profile = db.query(DBVoiceProfile).filter_by(id=profile_id).first()
+    if profile is None or profile.voice_type != "designed":
+        raise HTTPException(status_code=404, detail="Designed voice not found")
+    return profile
+
+
+@router.get("/profiles/{profile_id}/design-takes")
+async def list_design_takes(profile_id: str) -> list[dict]:
+    from ..services import design_anchor
+
+    return design_anchor.groups(profile_id)
+
+
+@router.post("/profiles/{profile_id}/design-takes")
+async def create_design_takes(profile_id: str, language: str = Form(...), db: Session = Depends(get_db)) -> dict:
+    """Design (or return) the neutral clip of a voice for *language*, ahead of use."""
+    from ..services import design_anchor
+    from ..services.task_queue import run_exclusive
+    from ..utils.expressive import DEFAULT_INTENSITY, NEUTRAL
+
+    profile = _designed_profile(profile_id, db)
+
+    async def work():
+        await design_anchor.ensure(profile, language, NEUTRAL, DEFAULT_INTENSITY, None)
+
+    await run_exclusive(f"design-takes-{profile_id}", work)
+    group = next((g for g in design_anchor.groups(profile_id) if g["language"] == design_anchor.clip_language(language) and g["emotion"] == NEUTRAL and not g["instruct"]), None)
+    if group is None:
+        raise HTTPException(status_code=500, detail="Could not design the voice clip")
+    return group
+
+
+@router.post("/profiles/{profile_id}/design-takes/{group_id}/redo")
+async def redo_design_takes(profile_id: str, group_id: str, db: Session = Depends(get_db)) -> dict:
+    """A fresh set of takes when none of the current ones sounds right."""
+    from ..services import design_anchor
+    from ..services.task_queue import run_exclusive
+
+    profile = _designed_profile(profile_id, db)
+    try:
+        return await run_exclusive(f"design-takes-{profile_id}", lambda: design_anchor.redesign(profile, group_id))
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.put("/profiles/{profile_id}/design-takes/{group_id}")
+async def choose_design_take(profile_id: str, group_id: str, chosen: int = Form(...)) -> dict:
+    from ..services import design_anchor
+
+    try:
+        return design_anchor.choose(profile_id, group_id, chosen)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+@router.get("/profiles/{profile_id}/design-takes/{group_id}/{index}")
+async def get_design_take(profile_id: str, group_id: str, index: int):
+    from ..services import design_anchor
+
+    try:
+        return FileResponse(design_anchor.take_path(profile_id, group_id, index), media_type="audio/wav")
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
 @router.put("/profiles/samples/{sample_id}", response_model=models.ProfileSampleResponse)
 async def update_profile_sample(
     sample_id: str,

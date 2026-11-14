@@ -361,6 +361,19 @@ export interface ModelUpdateInfo {
   error?: string;
 }
 
+/** Takes of a designed voice's fixed clip; every generation is cloned from the chosen one. */
+export interface DesignTakeGroup {
+  id: string;
+  language: string;
+  emotion: string;
+  instruct: string;
+  text: string;
+  takes: { seed: number; words: number; mos: number | null; seconds: number }[];
+  chosen: number;
+  picked_by: 'auto' | 'user';
+  created_at: number;
+}
+
 export interface ManagedModel {
   repo: string;
   names: string[];
@@ -412,6 +425,31 @@ export const studioApi = {
     json<Record<string, AuditionResult>>(`/voicelab/profiles/${profileId}/models`),
   auditionUrl: (profileId: string, key: string) =>
     serverUrl(`/voicelab/profiles/${profileId}/models/${encodeURIComponent(key)}/audio`),
+
+  designTakes: (profileId: string) =>
+    json<DesignTakeGroup[]>(`/profiles/${profileId}/design-takes`),
+  createDesignTakes: (profileId: string, language: string) => {
+    const form = new FormData();
+    form.append('language', language);
+    return json<DesignTakeGroup>(`/profiles/${profileId}/design-takes`, {
+      method: 'POST',
+      body: form,
+    });
+  },
+  redoDesignTakes: (profileId: string, groupId: string) =>
+    json<DesignTakeGroup>(`/profiles/${profileId}/design-takes/${groupId}/redo`, {
+      method: 'POST',
+    }),
+  chooseDesignTake: (profileId: string, groupId: string, chosen: number) => {
+    const form = new FormData();
+    form.append('chosen', String(chosen));
+    return json<DesignTakeGroup>(`/profiles/${profileId}/design-takes/${groupId}`, {
+      method: 'PUT',
+      body: form,
+    });
+  },
+  designTakeUrl: (profileId: string, groupId: string, index: number) =>
+    serverUrl(`/profiles/${profileId}/design-takes/${groupId}/${index}`),
 
   listStudio: () => json<StudioSummary[]>('/studio'),
   createStudio: (body: { name: string; language: string; defaults: StudioDefaults }) =>
