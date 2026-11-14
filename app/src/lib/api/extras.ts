@@ -77,6 +77,7 @@ export interface BatchCreateRequest {
   denoise?: number;
   sentence_pause_ms?: number;
   effects_chain?: EffectConfig[];
+  seed?: number;
   items: BatchItemInput[];
 }
 
@@ -170,6 +171,11 @@ export const extrasApi = {
     json<BatchDetail>(`/batch/${id}/regenerate`, {
       method: 'POST',
       body: JSON.stringify({ indices, texts }),
+    }),
+  chooseBatchTake: (id: string, index: number, generationId: string) =>
+    json<BatchDetail>(`/batch/${id}/take`, {
+      method: 'PUT',
+      body: JSON.stringify({ index, generation_id: generationId }),
     }),
   deleteBatch: (id: string) => json<{ deleted: boolean }>(`/batch/${id}`, { method: 'DELETE' }),
   downloadBatch: (

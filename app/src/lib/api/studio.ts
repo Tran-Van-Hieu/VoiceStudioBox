@@ -196,6 +196,8 @@ export interface StudioDefaults {
   denoise?: number;
   sentence_pause_ms?: number;
   effects_chain?: EffectConfig[] | null;
+  emotion?: string | null;
+  emotion_intensity?: number;
   /** The picker choice behind effects_chain: 'voice', 'none' or a preset id. */
   effects?: string;
 }

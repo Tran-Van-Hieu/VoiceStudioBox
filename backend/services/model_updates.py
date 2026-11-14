@@ -153,6 +153,8 @@ def list_models() -> list[dict]:
     out = []
     for repo, entry in state.items():
         cfgs = by_repo.get(repo, [])
+        if not cfgs:  # a model the app no longer ships; its pin stays for a later reinstall
+            continue
         out.append(
             {
                 "repo": repo,

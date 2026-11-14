@@ -7,6 +7,7 @@ import {
   isProfileCompatibleWithEngine,
 } from '@/components/Generation/EngineModelSelector';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   Select,
   SelectContent,
@@ -42,6 +43,46 @@ export function PageHeader({
     </header>
   );
 }
+
+/** useState that remembers its value in this browser, so a page reopens as it was left. */
+export function useSticky<T>(key: string, initial: T) {
+  const [value, setValue] = useState<T>(() => {
+    try {
+      const raw = localStorage.getItem(key);
+      return raw === null ? initial : (JSON.parse(raw) as T);
+    } catch {
+      return initial;
+    }
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch {
+      // Private mode: settings just aren't remembered.
+    }
+  }, [key, value]);
+  return [value, setValue] as const;
+}
+
+/** Empty means "let the app pick"; otherwise a fixed seed for repeatable takes. */
+export function SeedField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const { t } = useTranslation();
+  return (
+    <Field label={t('studio.common.seed')} hint={t('studio.common.seedHint')}>
+      <Input
+        type="number"
+        min={0}
+        step={1}
+        value={value}
+        placeholder={t('studio.common.seedAuto')}
+        onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ''))}
+      />
+    </Field>
+  );
+}
+
+export const seedOf = (value: string): number | undefined =>
+  value.trim() ? Number(value) : undefined;
 
 export function Panel({
   title,

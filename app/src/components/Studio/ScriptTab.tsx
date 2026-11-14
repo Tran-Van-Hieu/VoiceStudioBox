@@ -25,6 +25,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
 import { apiClient } from '@/lib/api/client';
 import { type StudioSegment, studioApi } from '@/lib/api/studio';
+import { EMOTIONS, type EmotionId, emotionSupport } from '@/lib/constants/emotions';
 import { useExtrasSettings } from '@/lib/hooks/useExtras';
 import { useProfiles } from '@/lib/hooks/useProfiles';
 import { cn } from '@/lib/utils/cn';
@@ -54,13 +55,17 @@ import {
 
 const PROJECT_KEY = 'voicebox.scriptProject';
 
-function readSavedProject(): string | null {
+const DRAFT_KEY = 'voicebox.scriptDraft';
+
+function readStored(key: string): string | null {
   try {
-    return localStorage.getItem(PROJECT_KEY);
+    return localStorage.getItem(key);
   } catch {
     return null;
   }
 }
+
+const readSavedProject = () => readStored(PROJECT_KEY);
 
 function PartRow({
   index,
@@ -160,7 +165,15 @@ export function ScriptTab() {
   const { data: profiles } = useProfiles();
 
   const [projectId, setProjectId] = useState<string | null>(readSavedProject);
-  const [script, setScript] = useState('');
+  // The pasted script survives a reload, like the project it was split into.
+  const [script, setScript] = useState(() => readStored(DRAFT_KEY) ?? '');
+  useEffect(() => {
+    try {
+      localStorage.setItem(DRAFT_KEY, script);
+    } catch {
+      // Private mode: the draft just isn't kept.
+    }
+  }, [script]);
   const [maxChars, setMaxChars] = useState(500);
   const [profileId, setProfileId] = useState<string | null>(null);
   const [language, setLanguage] = useState('vi');
@@ -172,6 +185,8 @@ export function ScriptTab() {
   const speed = speedChoice ?? extras?.speed ?? 1;
   const [pause, setPause] = useState(250);
   const [denoise, setDenoise] = useState(0);
+  const [emotion, setEmotion] = useState<EmotionId>('neutral');
+  const [intensity, setIntensity] = useState(0.6);
   const [effects, setEffects] = useState<EffectsChoice>('voice');
   const { data: presets } = useEffectPresets();
   const playing = useRef<HTMLAudioElement | null>(null);
@@ -219,6 +234,8 @@ export function ScriptTab() {
     if (d.speed) setSpeed(d.speed);
     if (d.sentence_pause_ms !== undefined) setPause(d.sentence_pause_ms);
     setDenoise(d.denoise ?? 0);
+    setEmotion((d.emotion as EmotionId) ?? 'neutral');
+    setIntensity(d.emotion_intensity ?? 0.6);
     setEffects(d.effects ?? 'voice');
   }, [project]);
   // biome-ignore lint/correctness/useExhaustiveDependencies: only seeds a fresh page
@@ -237,6 +254,8 @@ export function ScriptTab() {
     sentence_pause_ms: pause,
     speed,
     denoise: denoise > 0 ? denoise : undefined,
+    emotion: emotion === 'neutral' ? null : emotion,
+    emotion_intensity: intensity,
     effects,
     effects_chain: effectsChainFor(effects, presets) ?? null,
   };
@@ -444,6 +463,31 @@ export function ScriptTab() {
             format={(v) => `${v.toFixed(2)}×`}
             onChange={setSpeed}
           />
+          <Field label={t('emotion.label')} hint={t(`emotion.support.${emotionSupport(engine)}`)}>
+            <Select value={emotion} onValueChange={(v) => setEmotion(v as EmotionId)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {EMOTIONS.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>
+                    {t(`emotion.names.${e.id}`)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </Field>
+          {emotion !== 'neutral' && (
+            <SliderField
+              label={t('emotion.intensity')}
+              value={intensity}
+              min={0}
+              max={1}
+              step={0.05}
+              format={(v) => `${Math.round(v * 100)}%`}
+              onChange={setIntensity}
+            />
+          )}
           <SliderField
             label={t('studio.speak.pause')}
             value={pause}

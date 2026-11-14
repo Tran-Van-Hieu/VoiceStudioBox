@@ -18,7 +18,7 @@ Thanh bên có 5 mục:
 |---|---|
 | **Thư viện giọng** | Giọng đã clone, tìm kiếm, lọc. Nút **Clone giọng** nhận file audio hoặc video bất kỳ độ dài: tách giọng khỏi nhạc nền, khử nhiễu, kéo chọn đoạn mẫu trên sóng âm, Whisper tự chép lời. |
 | **Tạo âm thanh** | 4 chế độ: **Một bản**, **Kịch bản dài** (tự tách đoạn trọn câu, tải ZIP hoặc 1 file gộp), **Hàng loạt** (`.txt`, `.csv`), **Nhiều giọng** (mỗi đoạn một giọng, cảm xúc, tốc độ, khoảng nghỉ, nhạc nền). |
-| **Lồng tiếng** | Tách giọng, chép lời, nhận biết người nói, dịch có ngữ cảnh, đọc lại, ghép video. Chế độ **Chỉ chép lời** xuất SRT, TXT. |
+| **Lồng tiếng** | Tách giọng, chép lời, nhận biết người nói, dịch có ngữ cảnh, đọc lại, ghép video. Khớp giọng theo người nói hoặc theo từng câu, nạp SRT có sẵn (lời gốc hoặc bản dịch), chỉnh riêng mức giọng gốc và nhạc nền dưới câu lồng tiếng, gắn phụ đề cứng tuỳ chỉnh phông, cỡ, màu, vị trí. Chế độ **Chỉ chép lời** xuất SRT, TXT. |
 | **Lịch sử** | Tìm có dấu hoặc không dấu, lọc, ghim, xuất ZIP. |
 | **Cài đặt** | 4 tab: Chung, Giọng đọc, Model & GPU, Nâng cao. |
 
@@ -28,17 +28,19 @@ Mẹo khi viết kịch bản:
 - Chèn khoảng nghỉ: `[dừng 3s]` hoặc `[nghỉ 2-5s]`.
 - Kịch bản nhiều giọng: `Tên: lời thoại`, tên trùng với giọng trong Thư viện được gán tự động.
 
-Mỗi đoạn được Whisper nghe lại, chấm độ giống giọng, dò tiếng click và tạp âm, lỗi thì tự tạo lại. Bấm **Bỏ kiểm tra** để nhận ngay bản đang có, **Dừng ngay** để dừng. Kiểm tra tự động không bắt chắc chắn lỗi sai dấu thanh, nên vẫn cần nghe lại.
+Mỗi đoạn được Whisper nghe lại và so từng chữ với văn bản (bỏ qua dấu câu, chữ hoa/thường, cách viết số). Đoạn thiếu, thừa hay đọc sai chữ được tô đỏ kèm chữ sai; đoạn nào cũng có nút **Tạo lại**, cùng **Tạo lại đã chọn**, **Tạo lại đoạn lỗi** và **Tạo lại tất cả**. Muốn app tự tạo lại thì đặt số lần ở Cài đặt → Giọng đọc. Kiểm tra tự động không bắt chắc chắn lỗi sai dấu thanh, nên vẫn cần nghe lại.
+
+Mỗi model có khung **Cài đặt mô hình** riêng (OmniVoice: số bước giải mã 16–64, guidance, nhiệt độ…; Qwen: nhiệt độ, top-k, top-p, phạt lặp, số token tối đa), dùng chung cho cả 4 chế độ. Khử nhiễu, hiệu ứng và cân bằng âm lượng nằm trong khung **Hậu xử lý**.
 
 ## Model
 
 | Model | Tiếng Việt | VRAM | Ghi chú |
 |---|---|---|---|
 | OmniVoice | Có | khoảng 3 GB | Nhanh nhất, nên dùng. Chỉ dùng **phi thương mại** (CC-BY-NC). |
-| Qwen3-TTS 1.7B / 0.6B | Có | 4–6 GB | Đọc theo đoạn khoảng 20 giây để giọng không bị lệch. |
-| Chatterbox đa ngôn ngữ | Có | khoảng 4 GB | |
-| Whisper | Chép lời | 1–3 GB | Tự rời bộ nhớ sau 1 phút không dùng. |
-| Qwen3 1.7B / 4B | Dịch | 2–7 GB | Dùng cho lồng tiếng. |
+| Qwen3-TTS 1.7B | Không | khoảng 6 GB | Clone giọng cho 10 ngôn ngữ (Anh, Trung, Nhật, Hàn, Tây Ban Nha…). |
+| Qwen3-TTS VoiceDesign 1.7B | Không | khoảng 6 GB | Tạo giọng từ một đoạn mô tả, không cần mẫu. |
+| Whisper Turbo | Chép lời | khoảng 2 GB | Kiểm tra chữ và chép lời khi lồng tiếng. |
+| Qwen3 4B | Dịch | khoảng 7 GB | Dịch khi lồng tiếng. |
 
 Tốc độ đo trên RTX 4060 8 GB: OmniVoice tạo 1 phút âm thanh trong khoảng 10–18 giây.
 

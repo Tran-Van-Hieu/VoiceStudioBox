@@ -30,6 +30,10 @@ export function OutputSettingsSection() {
   const [speed, setSpeed] = useState(persistedSpeed);
   useEffect(() => setSpeed(persistedSpeed), [persistedSpeed]);
 
+  const savedSteps = settings?.omnivoice_steps ?? 32;
+  const [steps, setSteps] = useState(savedSteps);
+  useEffect(() => setSteps(savedSteps), [savedSteps]);
+
   const format = settings?.export_format ?? 'wav';
   const bitrate = settings?.mp3_bitrate ?? 192;
   const loudness =
@@ -152,15 +156,15 @@ export function OutputSettingsSection() {
           title={t('extras.qc.mode.title')}
           description={t('extras.qc.mode.description')}
           action={
+            // The server reads the old "omnivoice" value as on for every model.
             <Select
-              value={settings?.qc_mode ?? 'omnivoice'}
-              onValueChange={(v) => update({ qc_mode: v as 'off' | 'omnivoice' | 'all' })}
+              value={settings?.qc_mode === 'off' ? 'off' : 'all'}
+              onValueChange={(v) => update({ qc_mode: v as 'off' | 'all' })}
             >
               <SelectTrigger className="w-[220px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="omnivoice">{t('extras.qc.mode.omnivoice')}</SelectItem>
                 <SelectItem value="all">{t('extras.qc.mode.all')}</SelectItem>
                 <SelectItem value="off">{t('extras.qc.mode.off')}</SelectItem>
               </SelectContent>
@@ -171,21 +175,21 @@ export function OutputSettingsSection() {
           title={t('extras.qc.steps.title')}
           description={t('extras.qc.steps.description')}
           action={
-            <Select
-              value={String(settings?.omnivoice_steps ?? 32)}
-              onValueChange={(v) => update({ omnivoice_steps: Number(v) })}
-            >
-              <SelectTrigger className="w-[220px]">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="16">{t('extras.qc.steps.fast')}</SelectItem>
-                <SelectItem value="32">{t('extras.qc.steps.standard')}</SelectItem>
-                <SelectItem value="48">{t('extras.qc.steps.best')}</SelectItem>
-              </SelectContent>
-            </Select>
+            <span className="text-sm tabular-nums text-muted-foreground">
+              {t('extras.qc.steps.value', { count: steps })}
+            </span>
           }
-        />
+        >
+          <Slider
+            value={[steps]}
+            min={16}
+            max={64}
+            step={1}
+            onValueChange={([v]) => setSteps(v)}
+            onValueCommit={([v]) => update({ omnivoice_steps: v })}
+            aria-label={t('extras.qc.steps.title')}
+          />
+        </SettingRow>
         <SettingRow
           title={t('extras.qc.cooldown.title')}
           description={t('extras.qc.cooldown.description')}

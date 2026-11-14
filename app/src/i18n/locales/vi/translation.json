@@ -237,7 +237,7 @@
   "profileForm": {
     "createTitle": "Tạo giọng",
     "editTitle": "Sửa giọng",
-    "createDescription": "Tạo giọng nói mới từ một mẫu âm thanh hoặc từ giọng có sẵn.",
+    "createDescription": "Tạo giọng mới từ mẫu âm thanh (nhân bản) hoặc từ một đoạn mô tả giọng (thiết kế).",
     "editDescription": "Cập nhật thông tin giọng nói và quản lý các mẫu.",
     "draftRestored": "Đã khôi phục bản nháp",
     "discard": "Bỏ",
@@ -1414,10 +1414,11 @@
       "sectionTitle": "Độ chính xác khi đọc",
       "steps": {
         "title": "Chất lượng OmniVoice",
-        "description": "Số bước giải mã. Nhiều bước hơn thì âm sạch hơn nhưng tạo lâu hơn.",
+        "description": "Số bước giải mã (16–64). Nhiều bước hơn thì âm sạch hơn nhưng tạo lâu hơn; 32 là mặc định của mô hình. Cũng chỉnh được trong khung Cài đặt mô hình ở trang Tạo âm thanh.",
         "fast": "Nhanh (16 bước)",
         "standard": "Chuẩn (32 bước)",
-        "best": "Kỹ nhất (48 bước)"
+        "best": "Kỹ nhất (48 bước)",
+        "value": "{{count}} bước"
       },
       "cooldown": {
         "title": "Nghỉ giữa các kịch bản",
@@ -1425,12 +1426,12 @@
         "off": "Không nghỉ",
         "seconds": "{{count}} giây"
       },
-      "sectionDescription": "Whisper nghe lại từng đoạn đã tạo và tạo lại những đoạn bị thiếu chữ hoặc có âm lạ.",
+      "sectionDescription": "Whisper nghe lại từng đoạn đã tạo và so với văn bản; đoạn đọc sai được tô đỏ kèm chữ sai để bạn tạo lại.",
       "mode": {
         "title": "Kiểm tra giọng đã tạo",
-        "description": "Thời gian tạo sẽ lâu hơn vì đoạn nào cũng được kiểm tra. Cần model Whisper Turbo.",
+        "description": "Thời gian tạo sẽ lâu hơn vì đoạn nào cũng được nghe lại. Cần model Whisper Turbo.",
         "omnivoice": "Chỉ OmniVoice (khuyên dùng)",
-        "all": "Tất cả engine",
+        "all": "Bật (mọi model)",
         "off": "Tắt"
       },
       "retries": {
@@ -1556,7 +1557,10 @@
       "speed": "Tốc độ",
       "denoise": "Khử nhiễu",
       "off": "Tắt",
-      "autoDetect": "Tự nhận biết"
+      "autoDetect": "Tự nhận biết",
+      "seed": "Seed",
+      "seedAuto": "Tự động",
+      "seedHint": "Để trống để app tự chọn (dùng seed tốt nhất đã thử cho giọng này nếu có). Cùng seed và cùng cài đặt sẽ cho ra cùng kết quả."
     },
     "status": {
       "offline": "Đang kết nối server...",
@@ -1684,8 +1688,8 @@
     },
     "library": {
       "title": "Thư viện giọng",
-      "subtitle": "Giọng có sẵn và giọng bạn đã clone.",
-      "addPreset": "Thêm giọng có sẵn",
+      "subtitle": "Giọng bạn đã clone và giọng thiết kế từ mô tả.",
+      "addPreset": "Tạo giọng (mẫu hoặc mô tả)",
       "clone": "Clone giọng mới",
       "search": "Tìm giọng",
       "kind": {
@@ -1746,7 +1750,9 @@
       "bulkSelected": "Áp dụng cho {{count}} đoạn đã chọn",
       "applyBulk": "Áp dụng",
       "musicSpeech": "Nhạc khi có giọng (%)",
-      "musicPause": "Nhạc khi nghỉ (%)"
+      "musicPause": "Nhạc khi nghỉ (%)",
+      "pauseUnit": "giây nghỉ",
+      "speedHint": "Tốc độ riêng cho dòng này (0.5–2). Để trống: theo mặc định."
     },
     "dub": {
       "title": "Lồng tiếng",
@@ -1958,7 +1964,7 @@
       "reset": "Mặc định",
       "post": "Hậu xử lý",
       "effects": "Hiệu ứng",
-      "effectsHint": "Áp sau khi đọc xong. Tạo bộ hiệu ứng riêng ở trang Hiệu ứng.",
+      "effectsHint": "Áp sau khi đọc xong. Tạo bộ hiệu ứng riêng ở Cài đặt → Giọng đọc.",
       "effectsVoice": "Theo giọng đã chọn",
       "effectsNone": "Không dùng hiệu ứng",
       "loudnessHint": "Cài đặt chung, áp cho mọi bản tạo mới.",

@@ -19,6 +19,10 @@ def test_reports_missing_extra_and_wrong_words_in_order():
 def test_vietnamese_tone_marks_only_count_when_asked():
     assert word_diff("Hôm nay trời đẹp", "hom nay troi dep", "vi") == []
     assert [o["op"] for o in word_diff("Hôm nay trời đẹp", "hôm nay trời đép", "vi", tones=True)] == ["wrong"]
+    # Tones off still reports the words with their marks, as the user wrote them.
+    assert word_diff("Hôm nay trời đẹp", "hôm nay chơi đẹp", "vi") == [
+        {"op": "wrong", "expected": "trời", "heard": "chơi", "at": 2}
+    ]
 
 
 def test_batch_merge_refuses_unfinished_items_and_keeps_number_order(tmp_path, monkeypatch):

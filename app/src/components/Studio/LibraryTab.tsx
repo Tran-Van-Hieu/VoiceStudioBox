@@ -3,6 +3,7 @@ import { useNavigate } from '@tanstack/react-router';
 import { AudioLines, Mic, Pencil, Plus, Search, Trash2 } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ENGINE_OPTIONS } from '@/components/Generation/EngineModelSelector';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
@@ -96,7 +97,10 @@ export function LibraryTab() {
             />
           </div>
           <div className="flex gap-1">
-            {KINDS.map((k) => (
+            {KINDS.filter(
+              // Built-in voices came with a model that was removed; old ones still show.
+              (k) => k !== 'preset' || profiles?.some((p) => p.voice_type === 'preset'),
+            ).map((k) => (
               <button
                 key={k}
                 type="button"
@@ -127,7 +131,9 @@ export function LibraryTab() {
                 <p className="text-xs text-muted-foreground truncate">
                   {t(`studio.library.kind.${p.voice_type || 'cloned'}`)} ·{' '}
                   {languageName(p.language)}
-                  {p.default_engine ? ` · ${p.default_engine}` : ''}
+                  {p.default_engine
+                    ? ` · ${ENGINE_OPTIONS.find((o) => o.engine === p.default_engine)?.label ?? p.default_engine}`
+                    : ''}
                 </p>
               </button>
             ))}

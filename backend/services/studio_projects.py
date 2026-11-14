@@ -286,8 +286,9 @@ async def render(project: dict, segment_ids: Optional[list[str]], db) -> dict:
             model_size=s["model_size"] or defaults.get("model_size") or "1.7B",
             seed=s["seed"],
             speed=s["speed"] if s["speed"] is not None else defaults.get("speed"),
-            emotion=s["emotion"] or None,
-            emotion_intensity=s["emotion_intensity"],
+            # A line's own emotion wins; otherwise the project's default applies.
+            emotion=s["emotion"] or defaults.get("emotion") or None,
+            emotion_intensity=s["emotion_intensity"] if s["emotion"] else defaults.get("emotion_intensity", s["emotion_intensity"]),
             denoise=defaults.get("denoise"),
             sentence_pause_ms=defaults.get("sentence_pause_ms", 0),
             effects_chain=defaults.get("effects_chain"),

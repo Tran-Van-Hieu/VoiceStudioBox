@@ -128,16 +128,14 @@ function SegmentRow(props: {
           className="h-8 text-xs"
           value={s.profile_id}
           onChange={(v) => props.onChange({ profile_id: v })}
-          emptyLabel={
-            s.speaker ? `${s.speaker} · ${t('studio.adv.useDefault')}` : t('studio.adv.useDefault')
-          }
+          emptyLabel={`${s.speaker ? `${s.speaker} · ` : ''}${t('studio.common.voice')}: ${t('studio.adv.useDefault')}`}
         />
         <ModelPicker
           className="h-8 text-xs"
           value={modelValue(s)}
           language={language}
           profile={profile}
-          emptyLabel={t('studio.adv.useDefault')}
+          emptyLabel={`${t('studio.common.model')}: ${t('studio.adv.useDefault')}`}
           onChange={(v) => {
             const parsed = v ? parseEngine(v) : { engine: null, modelSize: null };
             props.onChange({ engine: parsed.engine, model_size: parsed.modelSize });
@@ -147,7 +145,7 @@ function SegmentRow(props: {
           value={s.emotion ?? 'neutral'}
           onValueChange={(v) => props.onChange({ emotion: v === 'neutral' ? null : v })}
         >
-          <SelectTrigger className="h-8 text-xs">
+          <SelectTrigger className="h-8 text-xs" title={t('emotion.label')}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -165,25 +163,31 @@ function SegmentRow(props: {
           max={2}
           step={0.05}
           aria-label={t('studio.common.speed')}
-          placeholder={t('studio.common.speed')}
+          title={t('studio.adv.speedHint')}
+          placeholder={`${t('studio.common.speed')} ×`}
           value={s.speed ?? ''}
           onChange={(e) =>
             props.onChange({ speed: e.target.value ? Number(e.target.value) : null })
           }
         />
-        <Input
-          className="h-8 text-xs"
-          type="number"
-          min={0}
-          max={60}
-          step={0.1}
-          aria-label={t('studio.adv.pause')}
-          title={t('studio.adv.pause')}
-          value={s.pause_after_ms / 1000}
-          onChange={(e) =>
-            props.onChange({ pause_after_ms: Math.round((Number(e.target.value) || 0) * 1000) })
-          }
-        />
+        <div className="relative">
+          <Input
+            className="h-8 text-xs pr-12"
+            type="number"
+            min={0}
+            max={60}
+            step={0.1}
+            aria-label={t('studio.adv.pause')}
+            title={t('studio.adv.pause')}
+            value={s.pause_after_ms / 1000}
+            onChange={(e) =>
+              props.onChange({ pause_after_ms: Math.round((Number(e.target.value) || 0) * 1000) })
+            }
+          />
+          <span className="pointer-events-none absolute right-2 top-2 text-[10px] text-muted-foreground">
+            {t('studio.adv.pauseUnit')}
+          </span>
+        </div>
       </div>
       <div className="flex flex-wrap items-center gap-2 pl-8 text-xs text-muted-foreground">
         <Button

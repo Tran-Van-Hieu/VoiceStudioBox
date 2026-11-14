@@ -93,12 +93,15 @@ def word_diff(expected: str, heard: str, language: str, tones: bool = False) -> 
     count only when *tones* is on.
     """
     want, got = _words(expected, language, tones), _words(heard, language, tones)
+    # Stripping tones never splits or joins words, so the toned lists line up
+    # with the compared ones and the report can show the words as written.
+    show_want, show_got = _words(expected, language, True), _words(heard, language, True)
     ops = []
     for tag, a1, a2, b1, b2 in SequenceMatcher(a=want, b=got, autojunk=False).get_opcodes():
         if tag == "equal":
             continue
         kind = {"delete": "missing", "insert": "extra", "replace": "wrong"}[tag]
-        ops.append({"op": kind, "expected": " ".join(want[a1:a2]), "heard": " ".join(got[b1:b2]), "at": a1})
+        ops.append({"op": kind, "expected": " ".join(show_want[a1:a2]), "heard": " ".join(show_got[b1:b2]), "at": a1})
     return ops
 
 

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ENGINE_OPTIONS } from '@/components/Generation/EngineModelSelector';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Input } from '@/components/ui/input';
@@ -79,13 +80,15 @@ function Row({
   onSelect: (v: boolean) => void;
   refresh: () => void;
 }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { toast } = useToast();
   const navigate = useNavigate();
   const setAudio = usePlayerStore((s) => s.setAudioWithAutoPlay);
   const [open, setOpen] = useState(false);
   const handleError = (e: Error) => toast({ title: e.message, variant: 'destructive' });
-  const date = item.created_at ? new Date(`${item.created_at}Z`).toLocaleString() : '';
+  const date = item.created_at
+    ? new Date(`${item.created_at}Z`).toLocaleString(i18n.language || undefined)
+    : '';
   const ready = item.status === 'completed';
 
   const editTags = () => {
@@ -138,7 +141,9 @@ function Row({
           <p className="text-sm line-clamp-2">{item.text}</p>
           <p className="text-xs text-muted-foreground mt-0.5 flex flex-wrap gap-x-2">
             <span>{item.profile_name}</span>
-            {item.engine && <span>{item.engine}</span>}
+            {item.engine && (
+              <span>{ENGINE_OPTIONS.find((o) => o.engine === item.engine)?.label ?? item.engine}</span>
+            )}
             <span>{item.language}</span>
             {item.duration ? <span>{formatSeconds(item.duration)}</span> : null}
             <span>{date}</span>

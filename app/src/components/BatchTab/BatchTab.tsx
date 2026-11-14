@@ -20,6 +20,10 @@ import {
   heardOf,
   PlayButton,
   QualityBadge,
+  SeedField,
+  SliderField,
+  seedOf,
+  useSticky,
   WordDiffList,
   wordDiffOf,
 } from '@/components/Studio/common';
@@ -89,7 +93,7 @@ export function BatchTab() {
   const lastFile = useRef<File | null>(null);
 
   // ── Voice / engine ───────────────────────────────────────────────────
-  const [profileId, setProfileId] = useState<string>('');
+  const [profileId, setProfileId] = useSticky<string>('vsbox.batch.voice', '');
   const profile = profiles?.find((p) => p.id === profileId) ?? null;
   const engineOptions = useMemo(
     () =>
@@ -98,21 +102,24 @@ export function BatchTab() {
         : ENGINE_OPTIONS,
     [profile],
   );
-  const [engineValue, setEngineValue] = useState<string>('qwen:1.7B');
+  const [engineValue, setEngineValue] = useSticky<string>('vsbox.batch.model', 'qwen:1.7B');
   const { engine, modelSize } = engineFromValue(engineValue);
   const languageOptions = getLanguageOptionsForEngine(engine);
-  const [language, setLanguage] = useState<string>('en');
-  const [speed, setSpeed] = useState<number | null>(null);
+  const [language, setLanguage] = useSticky<string>('vsbox.batch.language', 'en');
+  const [speed, setSpeed] = useSticky<number | null>('vsbox.batch.speed', null);
   const effectiveSpeed = speed ?? extras?.speed ?? 1;
-  const [emotion, setEmotion] = useState<EmotionId>('neutral');
-  const [emotionIntensity, setEmotionIntensity] = useState(0.6);
-  const [denoise, setDenoise] = useState(0);
-  const [effects, setEffects] = useState<EffectsChoice>('voice');
+  const [emotion, setEmotion] = useSticky<EmotionId>('vsbox.batch.emotion', 'neutral');
+  const [emotionIntensity, setEmotionIntensity] = useSticky('vsbox.batch.intensity', 0.6);
+  const [denoise, setDenoise] = useSticky('vsbox.batch.denoise', 0);
+  const [effects, setEffects] = useSticky<EffectsChoice>('vsbox.batch.effects', 'voice');
+  const [pause, setPause] = useSticky('vsbox.batch.pause', 250);
+  const [seed, setSeed] = useSticky('vsbox.batch.seed', '');
   const { data: presets } = useEffectPresets();
 
   useEffect(() => {
-    if (!profileId && profiles?.length) setProfileId(profiles[0].id);
-  }, [profiles, profileId]);
+    // No voice yet, or the remembered one was deleted.
+    if (profiles?.length && !profiles.some((p) => p.id === profileId)) setProfileId(profiles[0].id);
+  }, [profiles, profileId, setProfileId]);
 
   useEffect(() => {
     if (!engineOptions.some((o) => o.value === engineValue) && engineOptions.length) {
@@ -228,7 +235,8 @@ export function BatchTab() {
         emotion: emotion === 'neutral' ? undefined : emotion,
         emotion_intensity: emotionIntensity,
         denoise: denoise > 0 ? denoise : undefined,
-        sentence_pause_ms: 250,
+        sentence_pause_ms: pause,
+        seed: seedOf(seed),
         effects_chain: effectsChainFor(effects, presets),
         items,
       });
@@ -485,6 +493,16 @@ export function BatchTab() {
                 aria-label={t('extras.speed.title')}
               />
             </div>
+            <SliderField
+              label={t('studio.speak.pause')}
+              value={pause}
+              min={0}
+              max={1000}
+              step={50}
+              format={(v) => `${v} ms`}
+              onChange={setPause}
+            />
+            <SeedField value={seed} onChange={setSeed} />
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <span className="text-xs text-muted-foreground">{t('emotion.label')}</span>
@@ -651,6 +669,30 @@ export function BatchTab() {
                           {it.duration.toFixed(1)}s
                         </span>
                       ) : null}
+                      {(it.takes?.length ?? 0) > 1 && (
+                        <Select
+                          value={it.generation_id ?? ''}
+                          onValueChange={(g) =>
+                            extrasApi
+                              .chooseBatchTake(active.id, it.index, g)
+                              .then((b) => queryClient.setQueryData(['batch', active.id], b))
+                              .catch((e: Error) =>
+                                toast({ title: e.message, variant: 'destructive' }),
+                              )
+                          }
+                        >
+                          <SelectTrigger className="h-7 w-[84px] text-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {it.takes.map((take, n) => (
+                              <SelectItem key={take} value={take}>
+                                {t('studio.check.take', { n: n + 1 })}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
                       {it.final && <QualityBadge level={it.final.level} />}
                       {it.status === 'completed' && it.generation_id && (
                         <PlayButton

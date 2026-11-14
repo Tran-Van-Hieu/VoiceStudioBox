@@ -353,6 +353,23 @@ async def regenerate_batch_items(batch_id: str, data: BatchRegenerate, db: Sessi
     return batch_service.manifest_summary(b, batch_service.collect(b, db))
 
 
+class BatchTake(BaseModel):
+    index: int
+    generation_id: str
+
+
+@router.put("/batch/{batch_id}/take")
+async def choose_batch_take(batch_id: str, data: BatchTake, db: Session = Depends(get_db)) -> dict[str, Any]:
+    """Make one of an item's earlier takes the one that is played, downloaded and merged."""
+    b = _batch_or_404(batch_id)
+    item = next((it for it in b["items"] if it["index"] == data.index), None)
+    if item is None or data.generation_id not in item.get("takes", []):
+        raise HTTPException(status_code=404, detail="No such take")
+    item["generation_id"] = data.generation_id
+    batch_service.save(b)
+    return batch_service.manifest_summary(b, batch_service.collect(b, db))
+
+
 @router.delete("/batch/{batch_id}")
 async def delete_batch(batch_id: str) -> dict[str, bool]:
     _batch_or_404(batch_id)

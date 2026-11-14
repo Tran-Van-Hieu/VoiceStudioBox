@@ -31,8 +31,11 @@ import {
   PageHeader,
   Panel,
   parseEngine,
+  SeedField,
   SliderField,
+  seedOf,
   useSaveBlob,
+  useSticky,
   VoicePicker,
 } from './common';
 import { ScriptTab } from './ScriptTab';
@@ -84,20 +87,22 @@ function SingleSpeak() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   const [text, setText] = useState('');
-  const [profileId, setProfileId] = useState<string | null>(null);
+  // Voice and settings come back as they were left.
+  const [profileId, setProfileId] = useSticky<string | null>('vsbox.single.voice', null);
   const profile = useMemo(
     () => profiles?.find((p) => p.id === profileId) ?? null,
     [profiles, profileId],
   );
-  const [language, setLanguage] = useState('vi');
-  const [model, setModel] = useState<string | null>('omnivoice');
-  const [emotion, setEmotion] = useState<EmotionId>('neutral');
-  const [intensity, setIntensity] = useState(0.6);
-  const [speed, setSpeed] = useState(1);
-  const [denoise, setDenoise] = useState(0);
-  const [effects, setEffects] = useState<EffectsChoice>('voice');
+  const [language, setLanguage] = useSticky('vsbox.single.language', 'vi');
+  const [model, setModel] = useSticky<string | null>('vsbox.single.model', 'omnivoice');
+  const [emotion, setEmotion] = useSticky<EmotionId>('vsbox.single.emotion', 'neutral');
+  const [intensity, setIntensity] = useSticky('vsbox.single.intensity', 0.6);
+  const [speed, setSpeed] = useSticky('vsbox.single.speed', 1);
+  const [denoise, setDenoise] = useSticky('vsbox.single.denoise', 0);
+  const [effects, setEffects] = useSticky<EffectsChoice>('vsbox.single.effects', 'voice');
   const { data: presets } = useEffectPresets();
-  const [pause, setPause] = useState(250);
+  const [pause, setPause] = useSticky('vsbox.single.pause', 250);
+  const [seed, setSeed] = useSticky('vsbox.single.seed', '');
   const [preview, setPreview] = useState<string | null>(null);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [fmt, setFmt] = useState<ExportFormat>('mp3');
@@ -117,14 +122,19 @@ function SingleSpeak() {
   }, []);
 
   useEffect(() => {
-    if (!profileId && profiles?.length) {
+    // No voice yet, or the remembered one was deleted.
+    if (profiles?.length && !profiles.some((p) => p.id === profileId)) {
       const first = profiles.find((p) => (p.voice_type as string) !== 'import');
       if (first) setProfileId(first.id);
     }
-  }, [profiles, profileId]);
+  }, [profiles, profileId, setProfileId]);
 
+  // Picking another voice brings its language and model; reopening the page does not.
+  const seededFor = useRef(profileId);
+  // biome-ignore lint/correctness/useExhaustiveDependencies: runs when the voice changes
   useEffect(() => {
-    if (!profile) return;
+    if (!profile || seededFor.current === profile.id) return;
+    seededFor.current = profile.id;
     setLanguage(profile.language);
     const engine = profile.default_engine ?? profile.preset_engine;
     if (engine) setModel(engine === 'qwen' ? 'qwen:1.7B' : engine);
@@ -157,7 +167,7 @@ function SingleSpeak() {
         language,
         engine: engine as GenerationRequest['engine'],
         model_size: (modelSize ?? undefined) as GenerationRequest['model_size'],
-        seed: bestSeed,
+        seed: seedOf(seed) ?? bestSeed,
         speed,
         emotion: emotion === 'neutral' ? undefined : emotion,
         emotion_intensity: intensity,
@@ -326,6 +336,7 @@ function SingleSpeak() {
           <Field label={t('studio.common.model')}>
             <ModelPicker value={model} onChange={setModel} language={language} profile={profile} />
           </Field>
+          <SeedField value={seed} onChange={setSeed} />
           {!languageOk && <ErrorNote>{t('studio.speak.modelLanguage')}</ErrorNote>}
           {bestSeed !== undefined && (
             <p className="text-xs text-muted-foreground">{t('studio.speak.bestSeed')}</p>
